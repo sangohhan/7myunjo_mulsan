@@ -1,0 +1,109 @@
+<title>칠면조 물산</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one 16:9 pixel stage centred on a dark ground; DOM overlays for the start screen, survey and closing. Single committed dark look. */
+@font-face { font-family: "Galmuri11"; src: url("Galmuri11.woff2") format("woff2"); font-display: swap; }
+:root {
+  color-scheme: dark;
+  --ground: #1b1a22; --panel: #2a2836; --ink: #f1ecdf; --muted: #a9a3b5; --line: #4a465c;
+  --accent: #e2574c; --ok: #7ec27a; --gold: #f2c94c;
+  --pix: "Galmuri11", "DungGeunMo", "Malgun Gothic", "Apple SD Gothic Neo", monospace;
+}
+html, body { height: 100%; }
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--ground); color: var(--ink); font-family: var(--pix); font-size: 14px; line-height: 1.6;
+  display: flex; align-items: center; justify-content: center;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 8px; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+#stage { position: relative; width: min(100%, 1152px, calc((100vh - 16px) * 16 / 9)); aspect-ratio: 16 / 9; max-width: 100%; background: #000; border: 2px solid var(--line); }
+canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; user-select: none; -webkit-user-select: none; }
+.overlay { position: absolute; inset: 0; background: rgba(20, 18, 28, .95); display: flex; align-items: flex-start; justify-content: center; padding: 12px; overflow-y: auto; }
+.box { width: min(100%, 460px); display: flex; flex-direction: column; gap: 12px; margin: auto; }
+.box h1 { font-size: 24px; margin: 0; color: var(--gold); font-weight: 400; }
+.box h2 { font-size: 15px; margin: 0; font-weight: 400; color: var(--ink); }
+.box p { margin: 0; color: var(--muted); }
+.box b { color: var(--ink); font-weight: 400; }
+.warn { color: var(--gold) !important; }
+.genders { display: flex; gap: 10px; }
+.gender { flex: 1; background: var(--panel); border: 2px solid var(--line); padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.gender canvas { width: 48px; height: 72px; }
+.gender[aria-pressed=true] { border-color: var(--gold); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#nick { background: #111018; border: 2px solid var(--line); padding: 8px 10px; width: 6.5em; font-size: 18px; text-align: center; }
+#err, #serr { color: var(--accent); min-height: 1.6em; }
+.go { background: var(--accent); border: 0; color: #fff; padding: 10px 14px; font-size: 16px; }
+.go:disabled { opacity: .4; cursor: not-allowed; }
+fieldset { border: 2px solid var(--line); background: var(--panel); margin: 0; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+legend { padding: 0 6px; color: var(--gold); }
+.opts { display: flex; gap: 8px; flex-wrap: wrap; }
+.opts label { display: flex; align-items: center; gap: 6px; border: 2px solid var(--line); padding: 6px 12px; background: #111018; cursor: pointer; }
+.opts label:has(input:checked) { border-color: var(--gold); color: var(--gold); }
+.opts input { accent-color: #f2c94c; }
+.field { background: #111018; border: 2px solid var(--line); padding: 8px 10px; width: 100%; max-width: 16em; }
+.field:disabled { opacity: .4; }
+.scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+#code { width: 100%; background: #111018; border: 2px solid var(--line); padding: 8px; font-size: 11px; word-break: break-all; user-select: all; -webkit-user-select: all; max-height: 7em; overflow: auto; }
+#pad { position: absolute; left: 4%; bottom: 7%; width: 18%; aspect-ratio: 1; border-radius: 50%; background: rgba(20, 18, 28, .35); border: 3px solid rgba(255, 255, 255, .65); touch-action: none; user-select: none; -webkit-user-select: none; }
+#knob { position: absolute; width: 44%; height: 44%; left: 28%; top: 28%; border-radius: 50%; background: rgba(255, 255, 255, .75); border: 3px solid rgba(20, 18, 28, .5); pointer-events: none; }
+</style>
+
+<div id="stage">
+  <canvas id="cv" width="1152" height="648" aria-label="칠면조 물산 게임 화면"></canvas>
+  <div id="pad" hidden aria-label="이동 조이스틱"><div id="knob"></div></div>
+  <div class="overlay" id="intro">
+    <form class="box" id="introform">
+      <h1>칠면조 물산</h1>
+      <p>무역회사 칠면조 물산 수출팀의 하루를 체험하는 게임입니다. 팀장 1명과 팀원 6명, 모두 7명이 한 사무실을 씁니다.</p>
+      <div class="genders">
+        <button type="button" class="gender" id="g-m" aria-pressed="true"><canvas id="pv-m" width="16" height="24"></canvas><span>남성</span></button>
+        <button type="button" class="gender" id="g-f" aria-pressed="false"><canvas id="pv-f" width="16" height="24"></canvas><span>여성</span></button>
+      </div>
+      <p class="warn">반드시 본인의 성별로 골라주세요.</p>
+      <label class="row" for="nick"><span>이름 (한글 2글자)</span><input id="nick" maxlength="2" autocomplete="off" inputmode="text"></label>
+      <p>팀원들은 당신을 <b id="call">○○씨</b>라고 부릅니다.</p>
+      <div id="err" role="alert"></div>
+      <button class="go" id="go" disabled>시작하기</button>
+    </form>
+  </div>
+  <div class="overlay" id="survey" hidden>
+    <form class="box" id="surveyform">
+      <h1>마지막 설문</h1>
+      <p class="warn">설문을 완료해야 커피 쿠폰 응모가 가능합니다.</p>
+      <fieldset><legend>1</legend>
+        <h2>마지막 미션에서 단톡방에 올라온 팀원의 제안서에 달린 좋아요 갯수를 기억하십니까?</h2>
+        <div class="opts"><label><input type="radio" name="q1" value="예">예</label><label><input type="radio" name="q1" value="아니오">아니오</label></div>
+      </fieldset>
+      <fieldset><legend>2</legend>
+        <h2><label for="q2">1번에 [예]라고 답하셨다면 몇 개였는지 작성해주세요.</label></h2>
+        <input class="field" id="q2" type="number" min="0" max="99" inputmode="numeric" disabled>
+      </fieldset>
+      <fieldset><legend>3</legend>
+        <h2>본인이 선택한 시안이 최종안으로 채택되기를 어느 정도 원하셨습니까?</h2>
+        <div class="opts"><label><input type="radio" name="q3" value="1">1</label><label><input type="radio" name="q3" value="2">2</label><label><input type="radio" name="q3" value="3">3</label><label><input type="radio" name="q3" value="4">4</label><label><input type="radio" name="q3" value="5">5</label></div>
+        <div class="scale"><span>1: 전혀 아님</span><span>5: 매우 원했음</span></div>
+      </fieldset>
+      <fieldset><legend>4</legend>
+        <h2><label for="q4">본인의 MBTI를 알려주세요.</label></h2>
+        <input class="field" id="q4" maxlength="4" autocomplete="off" autocapitalize="characters" placeholder="예: ENFP">
+      </fieldset>
+      <fieldset><legend>5</legend>
+        <h2><label for="q5">커피 쿠폰에 응모할 본인의 전화번호를 작성해주세요.</label></h2>
+        <input class="field" id="q5" type="tel" inputmode="tel" autocomplete="off" maxlength="13" placeholder="010-0000-0000">
+      </fieldset>
+      <div id="serr" role="alert"></div>
+      <button class="go" id="send">제출하기</button>
+    </form>
+  </div>
+  <div class="overlay" id="ending" hidden>
+    <div class="box">
+      <h1>참여해주셔서 진심으로 감사드립니다.</h1>
+      <p><b>여러분의 응답은 수업 팀 프로젝트 분석 목적으로만 사용되며, 전화번호는 커피 쿠폰 추첨 후 폐기됩니다.</b></p>
+      <p>중앙대학교 조직행동론 7조</p>
+      <p id="endmsg" class="warn"></p>
+      <div id="codewrap" hidden><p>아래 응답 코드를 전부 복사해서 실험 담당자에게 보내 주세요.</p><div id="code"></div></div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,756 @@
+(function () {
+'use strict';
+var LW = 384, LH = 216, SC = 3, OL = '#2e222f';
+var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+var $ = function (id) { return document.getElementById(id); };
+var HASH = location.hash || '';
+var FAST = /fast/.test(HASH) ? 0.08 : 1;   // #fast shortens scripted waits (testing only). #s1 / #s2 force the condition.
+function rnd(a, b) { return a + Math.random() * (b - a); }
+function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+function mk(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function R(c, x, y, w, h, col) { c.fillStyle = col; c.fillRect(x, y, w, h); }
+function B(c, x, y, w, h, col) { R(c, x, y, w, h, OL); R(c, x + 1, y + 1, w - 2, h - 2, col); }
+function bitmap(c, rows, pal, x, y, s) { s = s || 1; for (var r = 0; r < rows.length; r++) for (var k = 0; k < rows[r].length; k++) { var ch = rows[r][k]; if (ch !== '.') R(c, x + k * s, y + r * s, s, s, pal[ch]); } }
+
+/*@chars*/
+
+/* ================= office map ================= */
+var DESKS = [ // x,y = top-left of desk surface
+  { x: 212, y: 70, w: 48, h: 16, lead: true, via: [[270, 50], [150, 50]], spot: [132, 88], enter: [[270, 50]] },
+  { x: 20, y: 104, w: 40, h: 16, via: [], spot: [72, 92], enter: [[70, 56]] },
+  { x: 120, y: 132, w: 40, h: 16, via: [[170, 108]], spot: [126, 108], enter: [[170, 50]] },
+  { x: 44, y: 168, w: 40, h: 16, via: [[94, 130]], spot: [84, 108], enter: [[94, 60]] },
+  { x: 284, y: 106, w: 40, h: 16, via: [[334, 50], [150, 50], [150, 112]], spot: [104, 112], enter: [[334, 50]] },
+  { x: 322, y: 160, w: 40, h: 16, via: [[372, 50], [156, 50]], spot: [152, 104], enter: [[372, 50]] },
+  { x: 206, y: 176, w: 40, h: 16, me: true }
+];
+var DOOR = { x: 92, w: 24 }, DX = 104;
+function seatPt(d) { return [d.x + d.w / 2, d.y - 4]; }
+function exitPt(d) { return [d.x + d.w + 10, d.y - 4]; }
+var TURKEY = [
+  '......DODODODO......', '....DOTDOTDOTDOD....', '...DTDODTDODTDODT...', '..DODTDODNNDODTDOD..', '..TDODTDNNNNDTDODT..', '.DODTDODNWKNDODTDOD.',
+  '.TDODTDNNNNYYDTDODT.', '.DODTDNNNNRNDODTDOD.', '..DTDNNNNNRNNDTDOD..', '..ODNNNNNNNNNNDTDO..', '...DNNNNTNNNNNNDT...', '...NNNNTTTNNNNNN....',
+  '...NNNTTTTTNNNNN....', '....NNNTTTNNNNN.....', '.....NNNNNNNNN......', '......NNNNNNN.......', '.......Y...Y........', '......YY..YY........'];
+var TPAL = { N: '#7a4a2a', D: '#5a3620', O: '#e08a3c', R: '#d8403a', Y: '#f0c040', W: '#ffffff', K: '#1c1820', T: '#c89a66' };
+var blocks = [];
+function drawWallFloor(c) {
+  for (var ty = 0; ty < LH; ty += 16) for (var tx = 0; tx < LW; tx += 16) {
+    R(c, tx, ty, 16, 16, ((tx + ty) / 16) % 2 ? '#c4b295' : '#cbba9e'); R(c, tx, ty + 15, 16, 1, '#b5a387'); R(c, tx + 15, ty, 1, 16, '#b5a387');
+  }
+  B(c, 176, 96, 132, 100, '#56807f'); R(c, 179, 99, 126, 94, '#608d8f');
+  for (var x = 179; x < 304; x += 4) for (var y = 99; y < 192; y += 4) if (((x + y) >> 2) % 2 === 0) R(c, x + 1, y + 1, 1, 1, '#588386');
+  R(c, 0, 0, LW, 36, '#e8dec8'); R(c, 0, 0, LW, 5, '#d6c9b0'); R(c, 0, 31, LW, 5, '#7a5c43'); R(c, 0, 31, LW, 1, '#967456'); R(c, 0, 35, LW, 1, OL);
+  [262].forEach(function (wx) {
+    B(c, wx, 6, 40, 22, '#8fd0ea'); R(c, wx + 1, 7, 38, 3, '#c4e8f5'); R(c, wx + 19, 7, 2, 20, '#f0ece0'); R(c, wx + 1, 16, 38, 2, '#f0ece0');
+    R(c, wx + 5, 11, 7, 2, '#fff'); R(c, wx + 26, 21, 8, 2, '#fff'); R(c, wx - 2, 28, 44, 2, '#f0ece0'); R(c, wx - 2, 30, 44, 1, OL);
+  });
+  // company sign, clock, framed turkey painting
+  B(c, 122, 8, 68, 17, '#2e4a78'); R(c, 123, 9, 66, 1, '#4a6a9c'); txtC(c, '칠면조 물산', 156, 10, '#fff6c8', 'center');
+  B(c, 194, 10, 11, 11, '#fafaf5'); R(c, 199, 12, 1, 4, OL); R(c, 199, 15, 3, 1, OL);
+  B(c, 213, 3, 30, 27, '#d8a83c'); R(c, 214, 4, 28, 1, '#f2d27a'); B(c, 215, 5, 26, 23, '#dfeee0'); R(c, 216, 22, 24, 5, '#9ccb8a'); bitmap(c, TURKEY, TPAL, 218, 7);
+  B(c, DOOR.x, 3, DOOR.w, 33, '#8c603e'); R(c, DOOR.x + 3, 6, 18, 12, '#a0704a'); R(c, DOOR.x + 3, 20, 18, 13, '#a0704a'); R(c, DOOR.x + 18, 20, 2, 3, '#f0d05a');
+  R(c, DOOR.x - 1, 36, DOOR.w + 2, 5, '#9a7a5a'); R(c, DOOR.x, 37, DOOR.w, 3, '#b08e6a');
+  B(c, 318, 4, 52, 32, '#8c603e');
+  var cols = ['#c8463c', '#3c6ebe', '#f0d05a', '#3c965a', '#e6e6eb', '#aa6ebe', '#d66058'];
+  for (var r = 0; r < 2; r++) { R(c, 320, 7 + r * 14, 48, 12, '#60402c'); for (var k = 0; k < 13; k++) R(c, 321 + k * 3.6 | 0, 9 + r * 14 + (k % 3 === 0 ? 1 : 0), 3, 10, cols[(k * 3 + r * 2) % 7]); }
+}
+/*@props*/
+var PROPS = [
+  { s: plantSpr, x: 28, y: 30 }, { s: plantSpr, x: 300, y: 30 }, { s: coolerSpr, x: 4, y: 40 }, { s: printerSpr, x: 350, y: 190 },
+  { s: sofaSpr, x: 110, y: 194 }, { s: cabinetSpr, x: 2, y: 186 }, { s: cabinetSpr, x: 22, y: 186 }, { s: plantSpr, x: 172, y: 190 }
+];
+var bg, propSprs = [];
+function buildMap() {
+  bg = mk(LW, LH); drawWallFloor(bg.getContext('2d'));
+  blocks = [{ x: 318, y: 30, w: 52, h: 10 }];
+  PROPS.forEach(function (p) { var s = p.s(); propSprs.push({ spr: s, x: p.x, y: p.y, by: p.y + s.height }); blocks.push({ x: p.x, y: p.y + s.height - 8, w: s.width, h: 8 }); });
+  DESKS.forEach(function (d) { blocks.push({ x: d.x - 4, y: d.y - 12, w: d.w + 8, h: d.h + 13 }); });
+}
+/*@desk*/
+
+/* ================= state & timing ================= */
+var NAMES_M = ['상진', '연겸', '민재', '도현', '하준', '태오', '건우', '시우', '준서', '경민'];
+var NAMES_F = ['서윤', '지안', '유나', '수빈', '채원', '다인', '예린', '소희', '나은'];
+var S = { scene: 'intro', t: 0, name: '', fem: false, clock: '08:50', npcs: [], bubbles: [], hint: '', fade: 0, timers: [], tweens: [], keys: {},
+  player: { x: DX, y: 44, dir: 'down', walk: 0, seated: false }, ctrl: false, bangDesk: false, choice: null, pc: null, chat: [], wipe: 0,
+  rec: { v: 1, events: [] } };
+function after(sec, fn) { S.timers.push({ t: S.t + sec * FAST, fn: fn }); }
+function wait(sec) { return new Promise(function (r) { after(sec, r); }); }
+function tween(sec, fn) { return new Promise(function (r) { S.tweens.push({ t0: S.t, d: Math.max(0.01, sec * Math.max(FAST, 0.3)), fn: fn, r: r }); }); }
+function fadeOut(sec) { return tween(sec || 0.45, function (p) { S.fade = p; }); }
+function fadeIn(sec) { return tween(sec || 0.45, function (p) { S.fade = 1 - p; }); }
+function say(who, text, dur) { S.bubbles.push({ who: who, text: text.replace(/\{n\}/g, S.name), until: S.t + (dur || 3) * FAST }); }
+function moveTo(a, pts, speed) { return new Promise(function (r) { a.path = pts.map(function (p) { return p.slice(); }); a.speed = speed || 72; a.pathRes = r; }); }
+function ev(e, o) { o = o || {}; o.e = e; o.t = Math.round(S.t * 100) / 100; S.rec.events.push(o); }
+function setupTeam() {
+  var m = shuffle(NAMES_M.filter(function (n) { return n !== S.name; })), f = shuffle(NAMES_F.filter(function (n) { return n !== S.name; }));
+  var genders = shuffle([0, 0, 0, 1, 1, 1]), mi = 0, fi = 0;
+  S.npcs = [];
+  DESKS.forEach(function (d, i) {
+    if (d.me) return;
+    var fem = genders[S.npcs.length] === 1, base = fem ? LOOKS_F[fi % 4] : LOOKS_M[mi % 4], nm = fem ? f[fi] : m[mi];
+    if (fem) fi++; else mi++;
+    S.npcs.push({ desk: i, d: d, name: nm, lead: !!d.lead, col: base.suit, spr: makeChar(look(base, i)), seated: true, x: 0, y: 0, dir: 'down', walk: 0, path: null, gone: false });
+  });
+  S.pspr = makeChar(S.fem ? PLAYER_F : PLAYER_M);
+  S.lead = S.npcs[0]; S.mates = S.npcs.slice(1);
+}
+function myDesk() { return DESKS[6]; }
+function nearDesk() { var d = myDesk(), p = S.player; return Math.abs(p.x - (d.x + d.w / 2)) < 46 && Math.abs(p.y - (d.y + 4)) < 34; }
+function face(a, tx, ty) { var dx = tx - a.x, dy = ty - a.y; a.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); }
+function standUp(n) { var s = seatPt(n.d); n.seated = false; n.x = s[0]; n.y = s[1]; n.walk = 0; }
+async function sitDown(n, pts) { await moveTo(n, pts.concat([exitPt(n.d), seatPt(n.d)])); n.seated = true; }
+
+/* ================= choices ================= */
+// Resolves { i, rt, to }: i = option index (-1 when the 10 s ran out), rt in seconds. Choice timers always run in real time.
+function choose(opts, sec, o) {
+  o = o || {};
+  return new Promise(function (res) { S.choice = { opts: opts.map(function (s) { return s.replace(/\{n\}/g, S.name); }), sec: sec, t0: S.t, rects: o.rects || [], custom: !!o.custom, prompt: o.prompt || '선택하세요', res: res }; });
+}
+function endChoice(i) { var c = S.choice; if (!c) return; S.choice = null; c.res({ i: i, rt: Math.round((S.t - c.t0) * 100) / 100, to: i < 0 }); }
+function choiceTop() { var c = S.choice; return LH - (18 + c.opts.length * 17 + 5) - 2; }
+
+/* ================= story ================= */
+var WELCOME = ['환영해요~', '잘 부탁해요', '반가워요!', '잘 왔어요~', '어서 와요!'];
+var LUNCH = ['아 잘 먹었다~', '배부르다', '마라로제두쫀쿠 최고…', '커피 한 잔 해야겠다', '졸리면 안 되는데…'];
+async function story() {
+  var p = S.player, lead = S.lead, mates = S.mates, r;
+  // #1 caption
+  S.scene = 'caption'; await fadeIn(0.6); await wait(5.5); await fadeOut(0.5);
+  // #2 elevator: 10 s in total, thought bubble for the middle 5 s
+  S.scene = 'elev'; S.el = { t0: S.t, dur: 10 * FAST, bubble: false }; S.clock = '08:55'; await fadeIn(0.4);
+  await wait(2.5); S.el.bubble = true; await wait(5); S.el.bubble = false; await wait(2.5);
+  S.el.ding = true; await wait(0.5);
+  await tween(0.6, function (q) { S.wipe = q; });
+  // #3 office: walk in, greeting choice
+  S.scene = 'office'; S.clock = '09:00'; p.x = DX; p.y = 44; p.dir = 'down';
+  await tween(0.7, function (q) { S.wipe = 1 - q; });
+  await moveTo(p, [[DX, 84]], 44);
+  r = await choose(['안녕하세요 신입사원 {n}입니다!', '이번에 새로 입사한 {n}입니다! 잘 부탁드립니다!', '신병 받아라~'], 10, { prompt: '인삿말을 골라 주세요' });
+  if (r.to) r.i = 0;
+  S.rec.greet = { c: r.i + 1, rt: r.rt, to: r.to };
+  var gl = ['안녕하세요 신입사원 {n}입니다!', '새로 입사한 {n}입니다! 잘 부탁드립니다!', '신병 받아라~'][r.i];
+  say('me', gl, 3.2);
+  var order = [lead].concat(shuffle(mates)), moves = [];
+  for (var i = 0; i < order.length; i++) {
+    (function (n) { standUp(n); moves.push(moveTo(n, [exitPt(n.d)].concat(n.d.via, [n.d.spot]), 86).then(function () { face(n, p.x, p.y); })); })(order[i]);
+  }
+  await Promise.all(moves);
+  p.dir = 'down'; await wait(0.4);
+  say(lead, r.i === 2 ? '유쾌한 친구가 들어왔구만.' : '씩씩한 친구가 들어왔구만.', 2.6); await wait(2.6);
+  var wl = shuffle(WELCOME), ms = shuffle(mates);
+  for (i = 0; i < ms.length; i++) { say(ms[i], wl[i], 2.2); await wait(rnd(1, 2)); }
+  await wait(1);
+  say('me', '열심히 하겠습니다!', 2.2); await wait(2.4);
+  var back = Promise.all(order.map(function (n) { return sitDown(n, n.d.via.slice().reverse()); }));
+  // free walk to my desk right away, while the team heads back
+  await walkToDesk();
+  await back;
+  // #4 team lead comes over
+  S.clock = '09:10'; await wait(0.6);
+  standUp(lead); await moveTo(lead, [exitPt(lead.d), [270, 150], [260, 172]], 72); lead.dir = 'left';
+  say(lead, '{n}씨 컴퓨터에 당장 처리해야할 서류를 넣어뒀으니 그것부터 부탁해요.', 4.2); await wait(4.4);
+  await sitDown(lead, [[270, 150]]);
+  await wait(0.3); await fadeOut();
+  // #5 document check: 3 pairs, 15 s each
+  S.scene = 'pc'; S.clock = '09:20'; S.rec.docs = [];
+  for (i = 0; i < 3; i++) {
+    S.pc = { mode: 'docs', idx: i, doc: null, msg: '' };
+    if (i === 0) { S.pc.msg = '서로 다른 부분을 양쪽 서류 모두 클릭하세요\n서류는 3쌍, 제한 시간은 각 17초입니다\n곧 시작합니다…'; await fadeIn(); await wait(6.2); S.pc.msg = ''; }
+    var res = await runDoc(i);
+    S.rec.docs.push(res);
+    S.pc.msg = res.found === res.total ? '확인 완료!' : '시간 초과';
+    await wait(1.1); S.clock = ['09:40', '10:05', '10:30'][i];
+  }
+  S.pc.msg = '대조 끝! 결과 파일을 저장했습니다'; await wait(1.6);
+  await fadeOut();
+  // send the file to the group chat
+  S.chat = [{ who: lead, text: '{n}씨, 서류 확인 끝나면 결과 파일을 여기 단톡방에 올려줘요.'.replace('{n}', S.name), unread: 0 }];
+  S.pc = { mode: 'send', file: { x: 44, y: 60 }, drag: false };
+  await fadeIn();
+  await new Promise(function (ok) { S.pc.res = ok; });
+  ev('file_sent');
+  var mine = pushMsg({ me: true, file: '결재서류_대조결과.xlsx', kind: 'x', unread: 6, likes: 0, hold: true });
+  S.pc.mode = 'chat';
+  await likesUp(mine, 6, 1, 2);
+  await wait(1.2);
+  var praiser = pick(mates);
+  pushMsg({ who: praiser, text: '깔끔하게 잘했네요.', unread: 5 }, 0.3, 1.2);
+  await wait(1.6);
+  r = await choose(['감사합니다!!', '챙겨주신 덕분입니다!', '이 정도는 껌이죠 ㅋ'], 10, { prompt: '답장을 골라 주세요' });
+  if (r.to) r.i = 0;
+  S.rec.reply = { c: r.i + 1, rt: r.rt, to: r.to };
+  pushMsg({ me: true, text: ['감사합니다!!', '챙겨주신 덕분입니다!', '이 정도는 껌이죠 ㅋ'][r.i], unread: 6 }, 0.3, 1.2);
+  var reacts = r.i === 2 ? ['ㅋㅋㅋㅋ', 'ㅋㅋㅋㅋㅋㅋ', 'ㅋㅋㅋ 패기 좋네요'] : ['^^', 'ㅎㅎ', '^^b'], rs = shuffle(mates).slice(0, 3);
+  for (i = 0; i < 3; i++) { await wait(rnd(0.9, 1.6)); pushMsg({ who: rs[i], text: reacts[i], unread: 5 }, 0.3, 1.0); }
+  // #6 welcome lunch
+  await wait(2); S.clock = '11:30';
+  var host = pick(mates.filter(function (n) { return n !== praiser; }));
+  var lunch = pushMsg({ who: host, text: '참고로 오늘 ' + S.name + '씨 환영식 점심 회식이 있어요. 메뉴는 마라로제두쫀쿠. 괜찮으시면 \u0001 눌러주세요.', unread: 5, likes: 0, hold: true });
+  await likesUp(lunch, 5, 1, 1);
+  lunch.canLike = true; var t0 = S.t;
+  await new Promise(function (ok) { lunch.res = ok; });
+  S.rec.lunchLikeRt = Math.round((S.t - t0) * 100) / 100; ev('lunch_like');
+  await wait(1.2);
+  pushMsg({ who: lead, text: '내 최애 메뉴야', unread: 5 }, 0.3, 1.0);
+  await wait(6); await fadeOut();
+  // #7 back from lunch
+  S.scene = 'office'; S.pc = null; S.clock = '13:00'; S.bubbles = [];
+  S.npcs.forEach(function (n) { n.seated = false; n.gone = true; });
+  p.seated = false; p.hidden = true;
+  await fadeIn();
+  var ln = shuffle(LUNCH), inOrder = shuffle(mates), li = 0; inOrder.splice(1, 0, lead); inOrder.splice(3, 0, 'me');
+  var seats = [];
+  for (i = 0; i < inOrder.length; i++) {
+    var n = inOrder[i];
+    if (n === 'me') { p.hidden = false; p.x = DX; p.y = 42; moveTo(p, [[DX, 54], [122, 70]], 60).then(function () { p.dir = 'down'; }); say('me', '잘 먹었습니다!', 1.5); }
+    else { n.gone = false; n.x = DX; n.y = 42; n.dir = 'down'; say(n, n.lead ? '자, 오후도 힘냅시다.' : ln[li++], 1.5); seats.push(sitDown(n, [[DX, 50]].concat(n.d.enter))); }
+    await wait(1.3);
+  }
+  await walkToDesk();
+  await Promise.all(seats);
+  await wait(0.4); await fadeOut();
+  // #8 desktop, notification, chat
+  S.scene = 'pc'; S.clock = '13:10'; S.pc = { mode: 'desk', toast: null };
+  await fadeIn(); await wait(1.5);
+  var asker = pick(mates);
+  S.pc.toast = { who: asker };
+  await new Promise(function (ok) { S.pc.res = ok; });
+  ev('toast_click');
+  S.pc = { mode: 'chat' };
+  pushMsg({ who: asker, file: '튀르키예_제안서_시안.pdf', kind: 'p', unread: 5 }, 0.4, 1.5);
+  await wait(2);
+  pushMsg({ who: asker, text: '이번 튀르키예 거래처 제안서 시안입니다. 보시고 마음에 드는 안으로 알려주시면 됩니다.', unread: 5 }, 0.4, 1.5);
+  await wait(4.5); await fadeOut();
+  // #9 four designs
+  S.pc = { mode: 'designs' }; await fadeIn(0.3);
+  r = await choose(['A', 'B', 'C', 'D'], 15, { custom: true, rects: DESIGN_RECTS });
+  if (r.to) r.i = Math.floor(Math.random() * 4);
+  S.rec.design = { c: 'ABCD'[r.i], rt: r.rt, to: r.to };
+  S.pc.picked = r.i; await wait(0.9); await fadeOut(0.3);
+  // #10 a teammate posts a different design first
+  var mate = pick(mates.filter(function (n) { return n !== asker; })), other = pick([0, 1, 2, 3].filter(function (k) { return k !== r.i; }));
+  S.rec.mateDesign = 'ABCD'[other]; S.clock = '13:20';
+  S.pc = { mode: 'chat' };
+  var img = pushMsg({ who: mate, img: other, unread: 5, likes: 0, hold: true });
+  var cap = pushMsg({ who: mate, text: '저는 시안 ' + 'ABCD'[other] + '가 제일 좋은 것 같습니다!', unread: 5, hold: true });
+  await fadeIn(0.3); await wait(0.8);
+  for (i = 5; i > 0; i--) { await wait(rnd(2, 2.5)); img.unread--; cap.unread--; }
+  // condition 1: four thumbs pile up at 1-2 s. condition 2: nothing happens for the same length of time.
+  for (i = 0; i < 4; i++) { await wait(rnd(1, 2)); if (S.rec.cond === 1) img.likes++; }
+  await wait(1.2);
+  // #11 final choice
+  S.rec.likesShown = img.likes;
+  r = await choose(['단톡방에 내 의견을 피력한다', '팀원의 의견에 따른다 (\u0001 누른다)', asker.name + '씨에게 개인 톡으로 내 의견을 피력한다'], 10, { prompt: '어떻게 할까요?' });
+  S.rec.final = { c: r.to ? 0 : r.i + 1, rt: r.rt, to: r.to };
+  S.rec.playSec = Math.round(S.t);
+  saveRecord();
+  await fadeOut(0.9);
+  S.scene = 'end'; $('survey').hidden = false;
+}
+async function walkToDesk() {
+  var p = S.player;
+  S.ctrl = true; S.bangDesk = true; S.hint = (coarse ? '왼쪽 아래 조이스틱' : 'WASD 키') + '으로 이동'; S.moveHint = true; S.seatHintAt = S.t + 30; S.seatHinted = false;
+  await new Promise(function (ok) { S.sitRes = ok; });
+  S.ctrl = false; S.bangDesk = false; S.hint = ''; p.seated = true; p.path = null; ev('sit');
+}
+
+/* ================= document check ================= */
+var ROWS = ['거래처', '품목', '수량', '단가', '금액', '납기일', '도착항'];
+var DOCS = [
+  { a: ['Nordhaus GmbH', '스텐 텀블러 500ml', '1,200개', 'USD 4.80', 'USD 5,760', '12월 18일', '함부르크'], diff: { 2: '1,500개', 5: '12월 28일' } },
+  { a: ['Anatolia Ticaret', '보온 도시락통 3단', '800개', 'USD 7.50', 'USD 6,000', '1월 9일', '이스탄불'], diff: { 3: 'USD 7.80', 6: '이즈미르' } },
+  { a: ['Pacific Goods Co.', '스텐 빨대 세트', '3,000개', 'USD 1.20', 'USD 3,600', '1월 22일', '롱비치'], diff: { 1: '스텐 수저 세트', 4: 'USD 3,900', 5: '1월 27일' } }
+];
+var DOCX = [26, 196], DOCW = 162, DOCY = 58, DOCH = 15;
+function runDoc(i) {
+  return new Promise(function (res) {
+    var src = DOCS[i], swap = Math.random() < 0.5, b = src.a.map(function (v, k) { return src.diff[k] || v; });
+    S.pc.doc = { L: swap ? b : src.a, R: swap ? src.a : b, diff: Object.keys(src.diff).map(Number), hit: {}, t0: S.t, sec: 17, miss: 0, flash: null, done: false,
+      end: function () { var d = S.pc.doc; if (d.done) return; d.done = true; res({ found: found(d), total: d.diff.length, miss: d.miss, sec: Math.round((S.t - d.t0) * 100) / 100 }); } };
+  });
+}
+function found(d) { return d.diff.filter(function (k) { return d.hit['L' + k] && d.hit['R' + k]; }).length; }
+
+/* ================= chat ================= */
+function pushMsg(m, a, b) {
+  S.chat.push(m);
+  if (m.unread && !m.hold) (function step() { after(rnd(2, 2.5), function () { m.unread--; if (m.unread > 0) step(); }); })();
+  return m;
+}
+// whoever reacts has read the message, so the unread number drops together with each thumbs-up
+async function likesUp(m, n, a, b) { for (var i = 0; i < n; i++) { await wait(rnd(a, b)); m.likes++; if (m.unread > 0) m.unread--; } }
+
+/* ================= update ================= */
+function blocked(x, y) {
+  if (x < 6 || x > LW - 6 || y > LH - 2) return true;
+  if (y < 41 && !(x > DOOR.x + 3 && x < DOOR.x + DOOR.w - 3 && y >= 37)) return true;
+  for (var i = 0; i < blocks.length; i++) { var b = blocks[i]; if (x + 5 > b.x && x - 5 < b.x + b.w && y > b.y && y - 4 < b.y + b.h) return true; }
+  return false;
+}
+function stepActor(a, dt) {
+  if (!a.path) return;
+  var w = a.path[0], dx = w[0] - a.x, dy = w[1] - a.y, dist = Math.hypot(dx, dy), st = a.speed * dt * (FAST < 1 ? 6 : 1);
+  if (dist <= st) { a.x = w[0]; a.y = w[1]; a.path.shift(); if (!a.path.length) { a.path = null; a.walk = 0; var r = a.pathRes; a.pathRes = null; if (r) r(); } }
+  else { a.x += dx / dist * st; a.y += dy / dist * st; a.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); a.walk += dt * 8; }
+}
+function update(dt) {
+  S.t += dt; var i;
+  for (i = S.timers.length - 1; i >= 0; i--) if (S.timers[i].t <= S.t) { var f = S.timers[i].fn; S.timers.splice(i, 1); f(); }
+  for (i = S.tweens.length - 1; i >= 0; i--) { var tw_ = S.tweens[i], q = Math.min(1, (S.t - tw_.t0) / tw_.d); tw_.fn(q); if (q >= 1) { S.tweens.splice(i, 1); tw_.r(); } }
+  S.bubbles = S.bubbles.filter(function (b) { return b.until > S.t; });
+  if (S.choice && S.t - S.choice.t0 >= S.choice.sec) endChoice(-1);
+  if (S.scene === 'pc' && S.pc && S.pc.doc && !S.pc.doc.done && S.t - S.pc.doc.t0 >= S.pc.doc.sec) S.pc.doc.end();
+  if (S.scene !== 'office') return;
+  S.npcs.forEach(function (n) { stepActor(n, dt); });
+  var p = S.player; stepActor(p, dt);
+  if (S.ctrl && !p.seated) {
+    var k = S.keys, dx = (k.right ? 1 : 0) - (k.left ? 1 : 0), dy = (k.down ? 1 : 0) - (k.up ? 1 : 0);
+    var jm = Math.hypot(JOY.x, JOY.y), analog = false;
+    if (!dx && !dy && jm > 0.22) { var jv = Math.max(0.55, jm); dx = JOY.x / jm * jv; dy = JOY.y / jm * jv; analog = true; }
+    if (dx || dy) {
+      var sp = 62 * dt, n = analog ? 1 : (dx && dy ? 0.7071 : 1);
+      if (!blocked(p.x + dx * sp * n, p.y)) p.x += dx * sp * n;
+      if (!blocked(p.x, p.y + dy * sp * n)) p.y += dy * sp * n;
+      p.dir = (analog ? Math.abs(dx) >= Math.abs(dy) : dx) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); p.walk += dt * 8;
+      if (S.moveHint) { S.moveHint = false; S.hint = ''; }
+    } else if (!p.path) p.walk = 0;
+    if (S.t >= S.seatHintAt && !S.seatHinted) { S.seatHinted = true; S.moveHint = false; S.hint = '느낌표(!)가 뜬 내 자리로 가서 앉으세요'; }
+  }
+}
+
+/* ================= render helpers ================= */
+var FONT = '11px Galmuri11, monospace';
+function txtC(c, s, x, y, col, align) { c.font = FONT; c.textBaseline = 'top'; c.textAlign = align || 'left'; c.fillStyle = col; c.fillText(s, Math.round(x), Math.round(y)); }
+function txt(s, x, y, col, align) { txtC(ctx, s, x, y, col, align); }
+function tw(s) { ctx.font = FONT; return Math.ceil(ctx.measureText(s).width); }
+var THUMB = ['....YY...', '....YY...', '...YYY...', '..YYYYYYY', 'BBYYYYYYY', 'BBYYYYYYY', 'BBYYYYYYY', 'BBYYYYYY.', 'BBYYYYY..'], THPAL = { Y: '#f2c94c', B: '#4c8be2' };
+function thumb(x, y) { bitmap(ctx, THUMB, THPAL, x, y); }
+// text with \u0001 standing for the thumbs-up emoji
+function mw(s) { var parts = s.split('\u0001'), w = 0; parts.forEach(function (q, i) { w += tw(q) + (i ? 11 : 0); }); return w; }
+function mtxt(s, x, y, col) { s.split('\u0001').forEach(function (q, i) { if (i) { thumb(x + 1, y + 1); x += 11; } txt(q, x, y, col); x += tw(q); }); }
+function wrap(s, maxW) {
+  var words = s.split(' '), lines = [], cur = '';
+  words.forEach(function (w) {
+    var t = cur ? cur + ' ' + w : w;
+    if (mw(t) <= maxW) { cur = t; return; }
+    if (cur) lines.push(cur); cur = w;
+    while (mw(cur) > maxW) { var k = cur.length - 1; while (k > 1 && mw(cur.slice(0, k)) > maxW) k--; lines.push(cur.slice(0, k)); cur = cur.slice(k); }
+  });
+  if (cur) lines.push(cur); return lines;
+}
+function bang(x, y) { var o = Math.round(Math.sin(S.t * 6) * 2); B(ctx, x - 4, y - 14 + o, 8, 13, '#e2372c'); R(ctx, x - 1, y - 12 + o, 2, 6, '#fff'); R(ctx, x - 1, y - 5 + o, 2, 2, '#fff'); }
+var BFONT = '8px Galmuri11, monospace';   // speech is drawn about 30% smaller than UI text, inside a roomier bubble
+function bubble(text, hx, hy) {
+  ctx.font = BFONT; var w = Math.ceil(ctx.measureText(text).width) + 14, h = 18, x = Math.max(2, Math.min(LW - w - 2, Math.round(hx - w / 2))), y = Math.max(22, hy - 21); hx = Math.max(x + 4, Math.min(x + w - 5, Math.round(hx)));
+  B(ctx, x, y, w, h, '#fffdf4'); R(ctx, hx - 2, y + h - 1, 5, 1, '#fffdf4'); R(ctx, hx - 2, y + h, 5, 1, OL); R(ctx, hx - 1, y + h, 3, 1, '#fffdf4'); R(ctx, hx - 1, y + h + 1, 3, 1, OL); R(ctx, hx, y + h + 1, 1, 1, '#fffdf4'); R(ctx, hx, y + h + 2, 1, 1, OL);
+  ctx.font = BFONT; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillStyle = OL; ctx.fillText(text, x + 7, y + h / 2 + 0.5);
+}
+function hud(text) { var w = tw(text) + 10; B(ctx, 4, 4, w, 16, '#1c1a26'); txt(text, 9, 6, '#f2c94c'); }
+function hintBar(s) { if (!s) return; var w = tw(s) + 12, x = LW - w - 4; ctx.fillStyle = 'rgba(20,18,28,.85)'; ctx.fillRect(x, 4, w, 16); txt(s, x + 6, 6, '#fff'); }
+function timerBar(x, y, w, left) { B(ctx, x, y, w, 7, '#3a3442'); var f = Math.max(0, Math.min(1, left)); R(ctx, x + 1, y + 1, Math.round((w - 2) * f), 5, f > 0.3 ? '#f2c94c' : '#e2574c'); }
+function drawChoice() {
+  var c = S.choice; if (!c || c.custom) return;
+  var n = c.opts.length, w = 0; c.opts.forEach(function (o) { w = Math.max(w, mw(o)); });
+  w = Math.max(200, w + 34); var h = 18 + n * 17 + 5, x = Math.round((LW - w) / 2), y = LH - h - 2;
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(x + 3, y + 3, w, h);
+  B(ctx, x, y, w, h, '#2a2836'); txt(c.prompt, x + 6, y + 3, '#f2c94c'); timerBar(x + w - 86, y + 5, 80, 1 - (S.t - c.t0) / c.sec);
+  c.rects = [];
+  for (var i = 0; i < n; i++) { var oy = y + 18 + i * 17; B(ctx, x + 4, oy, w - 8, 16, '#fffdf4'); B(ctx, x + 6, oy + 2, 12, 12, '#e2574c'); txt(String(i + 1), x + 12, oy + 2, '#fff', 'center'); mtxt(c.opts[i], x + 23, oy + 2, OL); c.rects.push([x + 4, oy, w - 8, 16]); }
+}
+
+/* ================= office ================= */
+function renderOffice() {
+  ctx.drawImage(bg, 0, 0);
+  var list = [], p = S.player;
+  propSprs.forEach(function (o) { list.push({ by: o.by, f: function () { ctx.fillStyle = 'rgba(40,30,40,.2)'; ctx.fillRect(o.x + 1, o.by - 1, o.spr.width, 3); ctx.drawImage(o.spr, o.x, o.y); } }); });
+  DESKS.forEach(function (d, i) {
+    var npc = S.npcs.filter(function (n) { return n.desk === i; })[0];
+    var seated = d.me ? p.seated : npc.seated, spr = d.me ? S.pspr : npc.spr;
+    list.push({ by: d.y - 12, f: function () { drawDeskBack(ctx, d, seated, spr); } });
+    list.push({ by: d.y + d.h, f: function () { drawDeskFront(ctx, d); var nm = d.me ? S.name : npc.name + (d.lead ? ' 팀장' : ''); txt(nm, d.x + d.w / 2 + 1, d.y + d.h + 3, 'rgba(46,34,47,.35)', 'center'); txt(nm, d.x + d.w / 2, d.y + d.h + 2, d.me ? '#fff6c8' : '#f4efe2', 'center'); } });
+  });
+  function walker(o, spr) { var fr = o.walk ? (Math.floor(o.walk) % 2 ? 1 : 2) : 0; list.push({ by: o.y, f: function () { ctx.fillStyle = 'rgba(40,30,40,.25)'; ctx.fillRect(Math.round(o.x) - 5, Math.round(o.y) - 1, 10, 2); ctx.drawImage(spr[o.dir][fr], Math.round(o.x) - 8, Math.round(o.y) - 24); } }); }
+  S.npcs.forEach(function (n) { if (!n.seated && !n.gone) walker(n, n.spr); });
+  if (!p.seated && !p.hidden) walker(p, S.pspr);
+  list.sort(function (a, b) { return a.by - b.by; }).forEach(function (o) { o.f(); });
+  var d = myDesk();
+  if (S.bangDesk) bang(d.x + d.w - 10, d.y - 9);
+  S.bubbles.forEach(function (b) {
+    var n = b.who, hx, hy;
+    if (n === 'me') { if (p.seated) { hx = d.x + d.w / 2; hy = d.y - 19; } else { hx = p.x; hy = p.y - 26; } } else if (n.seated) { hx = n.d.x + n.d.w / 2; hy = n.d.y - 19; } else { hx = n.x; hy = n.y - 25; }
+    bubble(b.text, hx, hy);
+  });
+  hud('월요일 ' + S.clock);
+  hintBar(S.ctrl && nearDesk() ? '내 책상을 클릭해서 앉기' : S.hint);
+}
+
+/* ================= caption & elevator ================= */
+function renderCaption() {
+  R(ctx, 0, 0, LW, LH, '#0e0d14');
+  bitmap(ctx, TURKEY, TPAL, LW / 2 - 20, 40, 2);
+  txt('당신은 칠면조 물산의 신입사원입니다.', LW / 2, 96, '#f2c94c', 'center');
+  txt('제한 시간내 최적의 선택으로', LW / 2, 118, '#f1ecdf', 'center');
+  txt('최상의 결과를 만들어보세요!', LW / 2, 132, '#f1ecdf', 'center');
+}
+var elevCab = null;
+function buildElev() {
+  var c = mk(LW, LH), x = c.getContext('2d'), CX = 124, CY = 30, CW = 136, BW = 58, FY = CY + BW, FH = 86, i, k, y, xx;
+  B(x, CX - 4, CY - 6, CW + 8, BW + FH + 16, '#5a6070');
+  R(x, CX, CY - 2, CW, 6, '#3a3e4c'); B(x, CX + 30, CY - 1, CW - 60, 4, '#fff6d0');
+  R(x, CX, CY + 4, CW, BW - 4, '#b4bcc8');
+  for (i = 0; i < 4; i++) { xx = CX + i * (CW / 4); R(x, xx, CY + 4, 1, BW - 4, '#8e96a4'); R(x, xx + 1, CY + 4, 1, BW - 4, '#ccd4de'); }
+  R(x, CX, CY + 4, CW, 2, '#d8dee6');
+  B(x, CX + 18, CY + 10, CW - 58, 26, '#9ccbe0'); R(x, CX + 20, CY + 12, CW - 62, 3, '#c8e6f2');
+  for (k = 0; k < 5; k++) R(x, CX + 26 + k * 3, CY + 14 + k * 4, 10, 1, '#b8dcec');
+  var mx = CX + 18 + (CW - 58) / 2; R(x, mx - 6, CY + 22, 12, 8, '#3a2a22'); R(x, mx - 7, CY + 30, 14, 6, '#2e4a78'); R(x, mx - 6, CY + 22, 12, 1, OL);
+  R(x, CX + 6, CY + 42, CW - 12, 3, OL); R(x, CX + 7, CY + 42, CW - 14, 2, '#c49a66'); R(x, CX + 14, CY + 45, 2, 4, OL); R(x, CX + CW - 16, CY + 45, 2, 4, OL);
+  R(x, CX, FY - 6, CW, 6, '#7e8694'); R(x, CX, FY - 6, CW, 1, '#5a6070');
+  var px = CX + CW - 32; B(x, px, CY + 8, 22, 40, '#2c2e3a'); B(x, px + 3, CY + 11, 16, 9, '#111018');
+  for (var r = 0; r < 4; r++) for (k = 0; k < 3; k++) B(x, px + 3 + k * 6, CY + 23 + r * 6, 5, 5, (r === 1 && k === 0) ? '#f2c94c' : '#8a909c');
+  B(x, CX + 5, CY + 12, 10, 14, '#fafaf5'); R(x, CX + 7, CY + 14, 6, 1, '#c8463c'); R(x, CX + 7, CY + 17, 6, 1, '#8a8a94'); R(x, CX + 7, CY + 20, 4, 1, '#8a8a94');
+  R(x, CX, FY, CW, FH, '#4a4e5c');
+  for (y = FY; y < FY + FH; y += 10) for (xx = CX; xx < CX + CW; xx += 10) if (((xx - CX) / 10 + (y - FY) / 10) % 2 === 0) R(x, xx, y, Math.min(10, CX + CW - xx), Math.min(10, FY + FH - y), '#525868');
+  R(x, CX, FY, CW, 2, '#383c48');
+  R(x, CX, FY, 6, FH, '#98a0ae'); R(x, CX + 5, FY, 1, FH, '#6e7684'); R(x, CX + CW - 6, FY, 6, FH, '#98a0ae'); R(x, CX + CW - 6, FY, 1, FH, '#6e7684');
+  R(x, CX + 7, FY + 30, 2, FH - 44, OL); R(x, CX + CW - 9, FY + 30, 2, FH - 44, OL);
+  R(x, CX, FY + FH, CW, 6, '#c8ccd4'); R(x, CX, FY + FH, CW, 1, OL);
+  for (xx = CX + 4; xx < CX + CW - 4; xx += 6) R(x, xx, FY + FH + 2, 3, 2, '#8a909c');
+  B(x, CX - 4, FY + FH + 6, 26, 10, '#8e96a4'); B(x, CX + CW - 22, FY + FH + 6, 26, 10, '#8e96a4'); R(x, CX - 2, FY + FH + 8, 22, 2, '#b4bcc8'); R(x, CX + CW - 20, FY + FH + 8, 22, 2, '#b4bcc8');
+  x.fillStyle = 'rgba(255,246,208,.07)'; x.fillRect(CX + 6, FY + 2, CW - 12, FH - 4); x.fillRect(CX + 30, FY + 10, CW - 60, FH - 30);
+  elevCab = c;
+}
+function renderElev() {
+  var e = S.el, q = Math.min(1, (S.t - e.t0) / e.dur), off = Math.floor((S.t - e.t0) / Math.max(FAST, 0.3) * 46), y, i;
+  R(ctx, 0, 0, LW, LH, '#15141c');
+  for (y = -12 + off % 24; y < LH; y += 12) { var odd = Math.floor((y - off) / 12) % 2; R(ctx, 0, y, LW, 12, odd ? '#1b1a24' : '#191822'); R(ctx, 0, y + 11, LW, 1, '#121118'); }
+  [96, 104, 280, 288].forEach(function (x) { R(ctx, x, 0, 3, LH, '#2a2a38'); R(ctx, x + 3, 0, 1, LH, '#101016'); });
+  for (y = -36 + off % 36; y < LH; y += 36) { R(ctx, 92, y, 16, 4, '#34344a'); R(ctx, 276, y, 16, 4, '#34344a'); }
+  [180, 188, 196, 204].forEach(function (x) { R(ctx, x, 0, 1, 30, '#3a3a4c'); });
+  ctx.drawImage(elevCab, 0, 0);
+  var fl = Math.min(7, 1 + Math.floor(q * 7)), ix = 192;
+  B(ctx, ix - 22, 6, 44, 16, '#111018'); txt(String(fl), ix - 8, 8, '#ff9a3c', 'center');
+  if (fl < 7 || !e.ding) for (i = 0; i < 5; i++) R(ctx, ix + 8 - i, 15 - i - (Math.floor(S.t * 4) % 2), 2 + i * 2, 1, '#ff9a3c');   // up arrow
+  txt(String(fl), 124 + 136 - 32 + 11, 30 + 11, '#ff9a3c', 'center');
+  var fx = 192, fy = 30 + 58 + 50, bob = Math.floor(S.t * 2) % 2 ? 0 : 0;
+  ctx.fillStyle = 'rgba(20,16,28,.35)'; ctx.fillRect(fx - 7, fy - 1, 14, 3);
+  ctx.drawImage(S.pspr.down[0], fx - 8, fy - 24 + bob);
+  B(ctx, fx + 6, fy - 7, 9, 7, '#5a4638'); R(ctx, fx + 9, fy - 9, 3, 2, OL); R(ctx, fx + 7, fy - 5, 7, 1, '#7a6048');
+  if (e.bubble) bubble('(첫 출근! 너무 긴장하지말고 하던대로 하자!)', fx, fy - 26);
+  if (e.ding) bubble('띵!', 236, 26);
+  hud('월요일 ' + S.clock);
+}
+function renderWipe() {   // elevator doors closing from both sides, then opening on the office
+  var w = Math.round(LW / 2 * S.wipe); if (w <= 0) return;
+  [[0, 1], [LW - w, -1]].forEach(function (o) {
+    R(ctx, o[0], 0, w, LH, '#aab2be'); for (var x = 12; x < w; x += 24) R(ctx, o[1] > 0 ? o[0] + w - x : o[0] + x, 0, 1, LH, '#8e96a4');
+    R(ctx, o[1] > 0 ? o[0] + w - 2 : o[0], 0, 2, LH, OL);
+  });
+}
+
+/* ================= computer screens ================= */
+function desktop(app) {
+  R(ctx, 0, 0, LW, LH, '#2f6f7a');
+  for (var y = 0; y < LH; y += 8) for (var x = (y / 8 % 2) * 8; x < LW; x += 16) R(ctx, x, y, 8, 8, '#2c6a75');
+  R(ctx, 0, LH - 16, LW, 16, '#23232e'); R(ctx, 0, LH - 16, LW, 1, '#4a4a5c');
+  B(ctx, 2, LH - 14, 30, 13, '#3d6fd0'); txt('시작', 6, LH - 13, '#fff');
+  if (app) { B(ctx, 36, LH - 14, tw(app) + 10, 13, '#3a3a4a'); txt(app, 41, LH - 13, '#dcdce6'); }
+  txt(S.clock, LW - 5, LH - 13, '#fff', 'right'); txt('월요일', LW - 40, LH - 13, '#a8a8b8', 'right');
+}
+function icons() {
+  [['내 문서', '#f0d05a'], ['거래처', '#6ab0e0'], ['휴지통', '#c8ccd4']].forEach(function (o, i) { B(ctx, 14, 12 + i * 44, 22, 20, o[1]); R(ctx, 16, 14 + i * 44, 8, 3, '#fff'); txt(o[0], 25, 34 + i * 44, '#fff', 'center'); });
+}
+function win(x, y, w, h, title, bar) {
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(x + 3, y + 3, w, h);
+  B(ctx, x, y, w, h, '#ece8dc'); R(ctx, x + 1, y + 1, w - 2, 14, bar || '#3d5a9a'); txt(title, x + 5, y + 2, bar ? '#2a3440' : '#fff');
+  B(ctx, x + w - 14, y + 2, 11, 11, '#d85a4a'); R(ctx, x + w - 10, y + 7, 3, 1, '#fff');
+}
+function popup(s) { var l = s.split('\n'), w = 0, h = l.length * 15 + 15; l.forEach(function (q) { w = Math.max(w, tw(q)); }); w += 28; var y = Math.round(100 - h / 2); ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(((LW - w) / 2 | 0) + 3, y + 3, w, h); B(ctx, (LW - w) / 2 | 0, y, w, h, '#fffdf4'); l.forEach(function (q, i) { txt(q, LW / 2, y + 8 + i * 15, i === 0 && l.length > 1 ? '#c8463c' : OL, 'center'); }); }
+function renderDocs() {
+  var pc = S.pc, d = pc.doc;
+  desktop('결재 서류 대조');
+  win(18, 4, 348, 190, '급한 결재 서류 대조 (' + (pc.idx + 1) + '/3)');
+  txt('남은 시간', 28, 22, OL); timerBar(78, 24, 240, d ? (d.done ? 0 : 1 - (S.t - d.t0) / d.sec) : 1);
+  if (d) txt(Math.max(0, Math.ceil(d.sec - (S.t - d.t0))) + '초', 356, 22, OL, 'right');
+  ['거래처 주문서', '우리 측 주문서'].forEach(function (title, s) {
+    var x = DOCX[s], side = s ? 'R' : 'L';
+    B(ctx, x, 36, DOCW, 132, '#fffdf4'); R(ctx, x + 1, 37, DOCW - 2, 16, s ? '#dbe6f4' : '#f4e6d0'); txt(title, x + DOCW / 2, 39, OL, 'center'); R(ctx, x + 1, 53, DOCW - 2, 1, OL);
+    if (!d) return;
+    ROWS.forEach(function (lab, k) {
+      var y = DOCY + k * DOCH;
+      if (k) R(ctx, x + 3, y - 1, DOCW - 6, 1, '#e4dfd0');
+      txt(lab, x + 5, y + 1, '#8a8474'); txt(d[side][k], x + 46, y + 1, OL);
+      if (d.hit[side + k]) { var ok = d.hit['L' + k] && d.hit['R' + k], col = ok ? '#3c965a' : '#e2372c'; R(ctx, x + 2, y - 1, DOCW - 4, 1, col); R(ctx, x + 2, y + DOCH - 2, DOCW - 4, 1, col); R(ctx, x + 2, y - 1, 1, DOCH, col); R(ctx, x + DOCW - 3, y - 1, 1, DOCH, col); }
+      if (d.flash && d.flash.s === side && d.flash.k === k && d.flash.until > S.t) { ctx.fillStyle = 'rgba(226,55,44,.25)'; ctx.fillRect(x + 2, y - 1, DOCW - 4, DOCH); }
+    });
+  });
+  txt('서로 다른 부분을 양쪽 서류 모두 클릭하세요', 28, 176, '#6a6456');
+  if (d) txt('찾은 오류 ' + found(d) + '/' + d.diff.length, 356, 176, '#c8463c', 'right');
+  if (pc.msg) popup(pc.msg);
+}
+function fileIcon(x, y) { B(ctx, x, y, 26, 32, '#f6f4ee'); R(ctx, x + 18, y + 1, 7, 7, '#cfcabb'); B(ctx, x + 3, y + 12, 20, 14, '#3c965a'); txt('X', x + 13, y + 13, '#fff', 'center'); }
+var CHAT = { x: 150, y: 4, w: 222, h: 190 };
+function unreadNum(n, x, y, align) { if (n > 0) { txt(String(n), x + 1, y + 1, 'rgba(50,50,30,.6)', align); txt(String(n), x, y, '#ffe600', align); } }
+function renderChat() {
+  var pc = S.pc, C = CHAT, top = C.y + 17, bottom = S.choice ? Math.min(C.y + C.h - 19, choiceTop() - 2) : C.y + C.h - 19;
+  desktop('수출팀 단톡방'); icons();
+  win(C.x, C.y, C.w, C.h, '칠면조 물산 수출팀 7', '#a4b9cc');
+  R(ctx, C.x + 1, C.y + 15, C.w - 2, C.h - 34, '#b2c7d9');
+  B(ctx, C.x + 4, C.y + C.h - 18, C.w - 8, 16, '#fff');
+  txt(pc.mode === 'send' ? '파일을 이 창으로 끌어다 놓으세요' : '메시지 입력', C.x + 8, C.y + C.h - 16, '#9a968a');
+  // measure
+  var total = 0;
+  S.chat.forEach(function (m) {
+    if (m.text) { m._l = wrap(m.text, 150); m._w = 0; m._l.forEach(function (l) { m._w = Math.max(m._w, mw(l)); }); m._w += 10; m._ch = m._l.length * 12 + 5; }
+    else if (m.file) { m._w = tw(m.file) + 26; m._ch = 20; } else { m._w = 72; m._ch = 48; }
+    m._h = (m.me ? 0 : 13) + m._ch + (m.likes ? 14 : 0) + 5; total += m._h;
+  });
+  var y = Math.min(top + 2, bottom - total);
+  ctx.save(); ctx.beginPath(); ctx.rect(C.x + 1, top - 2, C.w - 2, bottom - top + 2); ctx.clip();
+  S.chat.forEach(function (m) {
+    var x, cy = y;
+    if (y + m._h > top - 4 && y < bottom) {
+      if (m.me) x = C.x + C.w - 8 - m._w;
+      else { x = C.x + 26; B(ctx, C.x + 6, y, 16, 16, m.who.col); R(ctx, C.x + 11, y + 3, 6, 5, '#f5cdaa'); R(ctx, C.x + 9, y + 9, 10, 6, '#f4f4f0'); txt(m.who.name + (m.who.lead ? ' 팀장' : ''), x, y, '#38444f'); cy = y + 13; }
+      if (m.text) { B(ctx, x, cy, m._w, m._ch, m.me ? '#fee500' : '#fff'); m._l.forEach(function (l, i) { mtxt(l, x + 5, cy + 2 + i * 12, OL); }); }
+      else if (m.file) { B(ctx, x, cy, m._w, 20, m.me ? '#fee500' : '#fff'); B(ctx, x + 4, cy + 4, 12, 12, m.kind === 'p' ? '#d8403a' : '#3c965a'); txt(m.kind === 'p' ? 'P' : 'X', x + 10, cy + 4, '#fff', 'center'); txt(m.file, x + 20, cy + 4, OL); }
+      else { B(ctx, x, cy, 72, 48, '#fff'); drawDesign(m.img, x + 2, cy + 2, 68, 34); txt('시안 ' + 'ABCD'[m.img], x + 36, cy + 36, OL, 'center'); }
+      if (m.me) unreadNum(m.unread, x - 3, cy + m._ch - 12, 'right'); else unreadNum(m.unread, x + m._w + 3, cy + m._ch - 12, 'left');
+      m._like = null;
+      if (m.likes) {
+        var ly = cy + m._ch + 1, lw = 27 + (m.likes > 9 ? 6 : 0), lx = m.me ? C.x + C.w - 8 - lw : x;
+        B(ctx, lx, ly, lw, 13, m.liked ? '#fff3b0' : '#fff'); if (m.liked) { R(ctx, lx, ly, lw, 1, '#d8a83c'); R(ctx, lx, ly + 12, lw, 1, '#d8a83c'); R(ctx, lx, ly, 1, 13, '#d8a83c'); R(ctx, lx + lw - 1, ly, 1, 13, '#d8a83c'); }
+        thumb(lx + 3, ly + 2); txt(String(m.likes), lx + 15, ly + 1, OL);
+        m._like = [lx - 6, ly - 5, lw + 30, 23];
+        if (m.canLike && !m.liked) { bang(lx + lw + 9, ly + 14); txt('눌러 주세요', lx + lw + 18, ly + 1, '#c8463c'); }
+      }
+    }
+    y += m._h;
+  });
+  ctx.restore();
+  if (pc.mode === 'send') {
+    var f = pc.file, fx = pc.drag ? ptr.x - 13 : f.x, fy = pc.drag ? ptr.y - 16 : f.y;
+    if (!pc.drag) { txt('결재서류_대조결과', 97, 96, '#fff', 'center'); txt('.xlsx', 97, 108, '#fff', 'center'); bang(97, 56); }
+    fileIcon(Math.round(pc.drag ? fx : 84), Math.round(fy));
+  }
+}
+function renderDesk() {
+  desktop(''); icons();
+  var t = S.pc.toast; if (!t) return;
+  var x = 238, y = 150, w = 142, h = 46;
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(x + 3, y + 3, w, h);
+  B(ctx, x, y, w, h, '#fffdf4'); R(ctx, x + 1, y + 1, w - 2, 14, '#fee500'); txt('수출팀 단톡방', x + 5, y + 2, OL);
+  B(ctx, x + 5, y + 20, 16, 16, t.who.col); R(ctx, x + 10, y + 23, 6, 5, '#f5cdaa'); R(ctx, x + 8, y + 29, 10, 6, '#f4f4f0');
+  txt(t.who.name, x + 26, y + 18, '#38444f'); txt('파일을 보냈습니다.', x + 26, y + 30, OL);
+  bang(x + w - 10, y - 2);
+  S.pc.toastRect = [x, y - 18, w, h + 18];
+}
+/* four deliberately different proposal covers */
+function drawDesign(k, x, y, w, h) {
+  var u = w / 68, c = ctx, big = w > 100;
+  function r(a, b, cw, ch, col) { R(c, Math.round(x + a * u), Math.round(y + b * (h / 34)), Math.max(1, Math.round(cw * u)), Math.max(1, Math.round(ch * (h / 34))), col); }
+  if (k === 0) {            // A: minimal white
+    r(0, 0, 68, 34, '#fafafa'); r(5, 5, 4, 4, '#1c1c22'); r(5, 12, 26, 2, '#1c1c22'); r(5, 16, 16, 1, '#9a9aa4'); r(5, 28, 58, 1, '#1c1c22'); r(52, 5, 11, 1, '#9a9aa4'); r(52, 7, 7, 1, '#9a9aa4');
+    if (big) txt('PROPOSAL', x + 5 * u, y + h * 0.52, '#1c1c22');
+  } else if (k === 1) {     // B: navy and gold
+    r(0, 0, 68, 34, '#1a2647'); r(2, 2, 64, 1, '#d8a83c'); r(2, 31, 64, 1, '#d8a83c'); r(2, 2, 1, 30, '#d8a83c'); r(65, 2, 1, 30, '#d8a83c');
+    r(14, 11, 40, 7, '#d8a83c'); r(22, 21, 24, 1, '#f2d27a'); r(27, 24, 14, 1, '#f2d27a'); r(32, 5, 4, 4, '#f2d27a');
+    if (big) txt('PROPOSAL', x + w / 2, y + h * 0.335, '#1a2647', 'center');
+  } else if (k === 2) {     // C: pop colours
+    r(0, 0, 68, 34, '#ffd23c'); r(40, 0, 28, 20, '#ff5fa2'); r(46, 4, 16, 12, '#ffd23c'); r(0, 22, 30, 12, '#38c8e8'); r(4, 26, 8, 4, '#fff'); r(16, 26, 8, 4, '#fff');
+    r(4, 6, 32, 9, '#1c1c22'); r(34, 24, 30, 3, '#1c1c22'); r(34, 29, 20, 2, '#ff5fa2');
+    if (big) txt('PROPOSAL!', x + 7 * u, y + h * 0.2, '#ffd23c');
+  } else {                  // D: natural beige and green
+    r(0, 0, 68, 34, '#efe6d2'); r(0, 0, 14, 5, '#7aa860'); r(0, 5, 8, 5, '#8fbc74'); r(0, 10, 4, 4, '#7aa860'); r(56, 30, 12, 4, '#7aa860'); r(60, 25, 8, 5, '#8fbc74'); r(64, 20, 4, 5, '#7aa860');
+    r(18, 10, 32, 3, '#6a5238'); r(22, 16, 24, 1, '#a08a66'); r(26, 19, 16, 1, '#a08a66'); r(30, 25, 8, 3, '#5a8a48');
+    if (big) txt('Proposal', x + w / 2, y + h * 0.56, '#6a5238', 'center');
+  }
+}
+var DESIGN_RECTS = [[28, 40, 160, 66], [196, 40, 160, 66], [28, 112, 160, 66], [196, 112, 160, 66]];
+function renderDesigns() {
+  var pc = S.pc, c = S.choice;
+  desktop('튀르키예_제안서_시안.pdf');
+  win(18, 4, 348, 190, '튀르키예_제안서_시안.pdf'); R(ctx, 19, 19, 346, 174, '#5c6270');
+  txt('가장 마음에 드는 시안을 고르세요', 28, 23, '#fff'); timerBar(236, 25, 120, c ? 1 - (S.t - c.t0) / c.sec : 0);
+  DESIGN_RECTS.forEach(function (q, i) {
+    var sel = pc.picked === i;
+    R(ctx, q[0] - 2, q[1] - 2, q[2] + 4, q[3] + 4, sel ? '#e2372c' : OL);
+    drawDesign(i, q[0], q[1], q[2], q[3]);
+    B(ctx, q[0] + q[2] - 44, q[1] + q[3] - 15, 44, 15, sel ? '#e2372c' : '#2a2836'); txt('시안 ' + 'ABCD'[i], q[0] + q[2] - 22, q[1] + q[3] - 14, '#fff', 'center');
+  });
+}
+function render() {
+  ctx.setTransform(SC, 0, 0, SC, 0, 0); ctx.imageSmoothingEnabled = false;
+  if (S.scene === 'caption') renderCaption(); else if (S.scene === 'elev') renderElev(); else if (S.scene === 'office') renderOffice();
+  else if (S.scene === 'pc') { var m = S.pc.mode; if (m === 'docs') renderDocs(); else if (m === 'desk') renderDesk(); else if (m === 'designs') renderDesigns(); else renderChat(); }
+  else if (S.scene === 'intro') ctx.drawImage(bg, 0, 0); else R(ctx, 0, 0, LW, LH, '#000');
+  drawChoice();
+  renderWipe();
+  if (S.fade > 0) { ctx.fillStyle = 'rgba(0,0,0,' + Math.min(1, S.fade) + ')'; ctx.fillRect(0, 0, LW, LH); }
+}
+
+/* ================= input ================= */
+var ptr = { x: 0, y: 0 };
+function toL(e) { var r = cv.getBoundingClientRect(); ptr.x = (e.clientX - r.left) / r.width * LW; ptr.y = (e.clientY - r.top) / r.height * LH; }
+function inR(x, y, w, h) { return ptr.x >= x && ptr.x < x + w && ptr.y >= y && ptr.y < y + h; }
+function inQ(q) { return q && inR(q[0], q[1], q[2], q[3]); }
+cv.addEventListener('pointerdown', function (e) {
+  toL(e); try { cv.setPointerCapture(e.pointerId); } catch (er) {}
+  if (S.fade > 0.5) return;
+  if (S.choice) { for (var i = 0; i < S.choice.rects.length; i++) if (inQ(S.choice.rects[i])) { endChoice(i); return; } return; }
+  if (S.scene === 'office' && S.ctrl) {
+    var d = myDesk();
+    if (inR(d.x - 6, d.y - 24, d.w + 12, d.h + 30)) { if (nearDesk()) { var ok = S.sitRes; S.sitRes = null; if (ok) ok(); } else say('me', '가까이 가서 클릭하자', 1.8); }
+  } else if (S.scene === 'pc') {
+    var pc = S.pc;
+    if (pc.mode === 'docs' && pc.doc && !pc.doc.done) {
+      var dc = pc.doc;
+      [0, 1].forEach(function (s) {
+        var side = s ? 'R' : 'L';
+        if (!inR(DOCX[s], DOCY - 1, DOCW, DOCH * 7)) return;
+        var k = Math.floor((ptr.y - (DOCY - 1)) / DOCH);
+        if (dc.diff.indexOf(k) >= 0) { dc.hit[side + k] = true; if (found(dc) === dc.diff.length) dc.end(); }
+        else { dc.miss++; dc.flash = { s: side, k: k, until: S.t + 0.3 }; }
+      });
+    } else if (pc.mode === 'send') { if (inR(60, 44, 76, 78)) pc.drag = true; }
+    else if (pc.mode === 'desk' && pc.toast && inQ(pc.toastRect)) { var r = pc.res; pc.res = null; if (r) r(); }
+    else if (pc.mode === 'chat') {
+      S.chat.forEach(function (m) { if (m.canLike && !m.liked && inQ(m._like)) { m.liked = true; m.likes++; m.canLike = false; if (m.res) m.res(); } });
+    }
+  }
+});
+cv.addEventListener('pointermove', toL);
+function drop(e) {
+  toL(e);
+  if (S.scene === 'pc' && S.pc && S.pc.mode === 'send' && S.pc.drag) { S.pc.drag = false; if (inR(CHAT.x, CHAT.y, CHAT.w, CHAT.h)) { var r = S.pc.res; S.pc.res = null; if (r) r(); } }
+}
+cv.addEventListener('pointerup', drop); cv.addEventListener('pointercancel', drop);
+var KEYMAP = { KeyW: 'up', KeyA: 'left', KeyS: 'down', KeyD: 'right', ArrowUp: 'up', ArrowLeft: 'left', ArrowDown: 'down', ArrowRight: 'right' };
+function typing() { var a = document.activeElement; return a && /INPUT|TEXTAREA/.test(a.tagName); }
+window.addEventListener('keydown', function (e) {
+  if (typing()) return;
+  var k = KEYMAP[e.code]; if (k) { S.keys[k] = true; if (e.code.indexOf('Arrow') === 0) e.preventDefault(); }
+  if (S.choice && !S.choice.custom && /^Digit[1-9]$/.test(e.code)) { var i = +e.code.slice(5) - 1; if (i < S.choice.opts.length) endChoice(i); }
+});
+window.addEventListener('keyup', function (e) { var k = KEYMAP[e.code]; if (k) S.keys[k] = false; });
+window.addEventListener('blur', function () { S.keys = {}; });
+/*@joy*/
+
+/* ================= storage: name check, 50:50 assignment, responses ================= */
+// Two backends. On the hosted copy (GitHub Pages) window.TURKEY_API points at a Google Apps Script web app that keeps
+// the play counter, the used names and the responses in a Google Sheet. Without it the page uses the artifact database.
+var API = window.TURKEY_API || '';
+async function api(body) {   // text/plain body keeps the request "simple", so no CORS preflight is needed
+  var r = await tmo(fetch(API, { method: 'POST', body: JSON.stringify(body) }), 12000);
+  return await r.json();
+}
+function localId() { return 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+var dbP = null;
+try { if (window.claude && window.claude.use) dbP = window.claude.use('db'); } catch (e) {}
+function tmo(p, ms) { return Promise.race([p, new Promise(function (_, rej) { setTimeout(function () { rej(new Error('timeout')); }, ms); })]); }
+async function getDb() { if (!dbP) return null; try { return (await tmo(dbP, 5000)) || null; } catch (e) { return null; } }
+async function claimName(name) {  // true = free (now taken), false = already used, null = could not check
+  try {
+    var db = await getDb(); if (!db) return null;
+    var id = 'n-' + name.charCodeAt(0).toString(16) + '-' + name.charCodeAt(1).toString(16);
+    var ref = db.doc('names/' + id), snap = await tmo(ref.get(), 5000);
+    if (snap.exists) return false;
+    await tmo(ref.set({ name: name, at: Date.now() }), 5000); return true;
+  } catch (e) { return null; }
+}
+// Plays are numbered in the order they start. Each pair of plays (1st+2nd, 3rd+4th, ...) gets one of each condition in a shuffled order,
+// so every even number of plays is split exactly in half. Falls back to a coin flip when the counter cannot be written.
+async function assignCond() {
+  if (/s1/.test(HASH)) return { c: 1, src: 'hash' };
+  if (/s2/.test(HASH)) return { c: 2, src: 'hash' };
+  try {
+    var db = await getDb(); if (!db) throw 0;
+    var ref = db.doc('meta/assign'), snap = await tmo(ref.get(), 5000), n = snap.exists ? ((snap.data() || {}).n | 0) : 0;
+    await tmo(ref.set({ n: n + 1, at: Date.now() }), 5000);
+    var first = (Math.imul((n >> 1) + 7, 2654435761) >>> 13) & 1;
+    return { c: 1 + ((n & 1) ? 1 - first : first), src: 'db', slot: n };
+  } catch (e) { return { c: Math.random() < 0.5 ? 1 : 2, src: 'random' }; }
+}
+var recRef = null, recSaved = false;
+async function saveRecord() {
+  var rec = JSON.parse(JSON.stringify(S.rec)); rec.savedAt = Date.now();
+  if (API) { try { var r = await api({ a: 'save', id: rec.id, rec: rec }); return !!(r && r.ok); } catch (e) { return false; } }
+  try {
+    var db = await getDb(); if (!db) return false;
+    if (!recRef) {   // one private row per signed-in participant: responses/<their id>, readable only by the owner and editors
+      var user = await tmo(window.claude.use('user'), 5000); if (!user) return false;
+      var uid = await tmo(user.id(), 5000); if (!uid) return false;
+      recRef = db.doc('responses/' + uid);
+    }
+    await tmo(recRef.set(rec), 6000); recSaved = true; return true;
+  } catch (e) { return false; }
+}
+
+/* ================= start screen & survey ================= */
+function previews() { [['pv-m', PLAYER_M], ['pv-f', PLAYER_F]].forEach(function (p) { var c = $(p[0]).getContext('2d'); c.clearRect(0, 0, 16, 24); drawChar(c, p[1], 'down', 0); }); }
+function validName(v) { return /^[가-힣]{2}$/.test(v); }
+$('g-m').addEventListener('click', function () { $('g-m').setAttribute('aria-pressed', 'true'); $('g-f').setAttribute('aria-pressed', 'false'); });
+$('g-f').addEventListener('click', function () { $('g-f').setAttribute('aria-pressed', 'true'); $('g-m').setAttribute('aria-pressed', 'false'); });
+$('nick').addEventListener('input', function () {
+  var v = $('nick').value.trim(); $('call').textContent = (v || '○○') + '씨'; $('go').disabled = !validName(v);
+  $('err').textContent = v.length === 2 && !validName(v) ? '이름은 완성된 한글 2글자로 적어 주세요.' : '';
+});
+$('introform').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  var v = $('nick').value.trim(); if (!validName(v) || S.scene !== 'intro') return;
+  $('go').disabled = true; $('err').textContent = '';
+  var ok = null, a = null;
+  if (API) {
+    var forced = /s1/.test(HASH) ? 1 : /s2/.test(HASH) ? 2 : 0;
+    try {
+      var r = await api({ a: 'start', name: v, force: forced });
+      if (r && r.dup) ok = false; else if (r && r.ok) { ok = true; a = { c: r.cond, src: forced ? 'hash' : 'sheet', slot: r.slot }; S.rec.id = r.id; }
+    } catch (er) {}
+    if (ok !== false && !a) { a = { c: forced || (Math.random() < 0.5 ? 1 : 2), src: forced ? 'hash' : 'random' }; S.rec.id = localId(); }
+  } else ok = await claimName(v);
+  if (ok === false) { $('err').textContent = '이미 다른 사람이 쓰고 있는 이름입니다. 다른 이름을 골라 주세요.'; $('go').disabled = false; return; }
+  if (!a) a = await assignCond();
+  S.name = v; S.fem = $('g-f').getAttribute('aria-pressed') === 'true';
+  S.rec.name = v; S.rec.gender = S.fem ? 'F' : 'M'; S.rec.cond = a.c; S.rec.condSrc = a.src; if (a.slot != null) S.rec.slot = a.slot;
+  S.rec.nameChecked = ok === true; S.rec.touch = coarse; S.rec.startedAt = Date.now();
+  setupTeam(); S.fade = 1; $('intro').hidden = true;
+  story().catch(function (er) { console.error(er); });
+});
+document.querySelectorAll('input[name=q1]').forEach(function (el) { el.addEventListener('change', function () { var yes = el.value === '예' && el.checked; $('q2').disabled = !yes; if (!yes) $('q2').value = ''; }); });
+$('q4').addEventListener('input', function () { $('q4').value = $('q4').value.toUpperCase().replace(/[^A-Z]/g, ''); });
+function radio(name) { var el = document.querySelector('input[name=' + name + ']:checked'); return el ? el.value : ''; }
+$('surveyform').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  var q1 = radio('q1'), q2 = $('q2').value.trim(), q3 = radio('q3'), q4 = $('q4').value.trim(), q5 = $('q5').value.trim(), err = '';
+  if (!q1) err = '1번 문항에 답해 주세요.';
+  else if (q1 === '예' && q2 === '') err = '2번 문항에 갯수를 적어 주세요.';
+  else if (!q3) err = '3번 문항에 답해 주세요.';
+  else if (!/^[EI][SN][TF][JP]$/.test(q4)) err = '4번 문항에 MBTI 네 글자를 적어 주세요. (예: ENFP)';
+  else if (q5.replace(/\D/g, '').length < 10) err = '5번 문항에 전화번호를 적어 주세요.';
+  $('serr').textContent = err; if (err) return;
+  $('send').disabled = true; $('send').textContent = '제출하는 중…';
+  S.rec.survey = { remember: q1, count: q1 === '예' ? Number(q2) : null, want: Number(q3), mbti: q4, phone: q5 };
+  var ok = await saveRecord();
+  $('survey').hidden = true; $('ending').hidden = false;
+  if (!ok) {
+    $('endmsg').textContent = '이 화면에서는 응답을 자동으로 보낼 수 없었습니다.';
+    var slim = JSON.parse(JSON.stringify(S.rec)); delete slim.events;
+    $('code').textContent = btoa(unescape(encodeURIComponent(JSON.stringify(slim)))); $('codewrap').hidden = false;
+  }
+});
+
+/* ================= loop ================= */
+[TURKEY].forEach(function (b) { b.forEach(function (r) { if (r.length !== 20) console.error('bad turkey row', r); }); });
+previews();
+var last = performance.now(), ready = false;
+function frame(now) {
+  var dt = Math.min(0.05, (now - last) / 1000); last = now; update(dt); render();
+  var showPad = coarse && S.scene === 'office' && S.ctrl, pad = $('pad');
+  if (pad.hidden === showPad) { pad.hidden = !showPad; S.keys = {}; JOY.reset(); }
+  requestAnimationFrame(frame);
+}
+function go() { if (ready) return; ready = true; buildMap(); buildElev(); requestAnimationFrame(frame); }
+if (document.fonts && document.fonts.load) { document.fonts.load(FONT).then(go, go); setTimeout(go, 3000); } else go();
+window.__game = function () { return S; };
+})();

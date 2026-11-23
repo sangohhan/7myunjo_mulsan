@@ -1,0 +1,1000 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="robots" content="noindex">
+<script>window.TURKEY_API = '';</script>
+</head>
+<body>
+<title>칠면조 물산</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one 16:9 pixel stage centred on a dark ground; DOM overlays for the start screen, survey and closing. Single committed dark look. */
+@font-face { font-family: "Galmuri11"; src: url("Galmuri11.woff2") format("woff2"); font-display: swap; }
+:root {
+  color-scheme: dark;
+  --ground: #1b1a22; --panel: #2a2836; --ink: #f1ecdf; --muted: #a9a3b5; --line: #4a465c;
+  --accent: #e2574c; --ok: #7ec27a; --gold: #f2c94c;
+  --pix: "Galmuri11", "DungGeunMo", "Malgun Gothic", "Apple SD Gothic Neo", monospace;
+}
+html, body { height: 100%; }
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--ground); color: var(--ink); font-family: var(--pix); font-size: 14px; line-height: 1.6;
+  display: flex; align-items: center; justify-content: center;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 8px; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+#stage { position: relative; width: min(100%, 1152px, calc((100vh - 16px) * 16 / 9)); aspect-ratio: 16 / 9; max-width: 100%; background: #000; border: 2px solid var(--line); }
+canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; user-select: none; -webkit-user-select: none; }
+.overlay { position: absolute; inset: 0; background: rgba(20, 18, 28, .95); display: flex; align-items: flex-start; justify-content: center; padding: 12px; overflow-y: auto; }
+.box { width: min(100%, 460px); display: flex; flex-direction: column; gap: 12px; margin: auto; }
+.box h1 { font-size: 24px; margin: 0; color: var(--gold); font-weight: 400; }
+.box h2 { font-size: 15px; margin: 0; font-weight: 400; color: var(--ink); }
+.box p { margin: 0; color: var(--muted); }
+.box b { color: var(--ink); font-weight: 400; }
+.warn { color: var(--gold) !important; }
+.genders { display: flex; gap: 10px; }
+.gender { flex: 1; background: var(--panel); border: 2px solid var(--line); padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.gender canvas { width: 48px; height: 72px; }
+.gender[aria-pressed=true] { border-color: var(--gold); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#nick { background: #111018; border: 2px solid var(--line); padding: 8px 10px; width: 6.5em; font-size: 18px; text-align: center; }
+#err, #serr { color: var(--accent); min-height: 1.6em; }
+.go { background: var(--accent); border: 0; color: #fff; padding: 10px 14px; font-size: 16px; }
+.go:disabled { opacity: .4; cursor: not-allowed; }
+fieldset { border: 2px solid var(--line); background: var(--panel); margin: 0; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+legend { padding: 0 6px; color: var(--gold); }
+.opts { display: flex; gap: 8px; flex-wrap: wrap; }
+.opts label { display: flex; align-items: center; gap: 6px; border: 2px solid var(--line); padding: 6px 12px; background: #111018; cursor: pointer; }
+.opts label:has(input:checked) { border-color: var(--gold); color: var(--gold); }
+.opts input { accent-color: #f2c94c; }
+.field { background: #111018; border: 2px solid var(--line); padding: 8px 10px; width: 100%; max-width: 16em; }
+.field:disabled { opacity: .4; }
+.scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+#code { width: 100%; background: #111018; border: 2px solid var(--line); padding: 8px; font-size: 11px; word-break: break-all; user-select: all; -webkit-user-select: all; max-height: 7em; overflow: auto; }
+#pad { position: absolute; left: 4%; bottom: 7%; width: 18%; aspect-ratio: 1; border-radius: 50%; background: rgba(20, 18, 28, .35); border: 3px solid rgba(255, 255, 255, .65); touch-action: none; user-select: none; -webkit-user-select: none; }
+#knob { position: absolute; width: 44%; height: 44%; left: 28%; top: 28%; border-radius: 50%; background: rgba(255, 255, 255, .75); border: 3px solid rgba(20, 18, 28, .5); pointer-events: none; }
+</style>
+
+<div id="stage">
+  <canvas id="cv" width="1152" height="648" aria-label="칠면조 물산 게임 화면"></canvas>
+  <div id="pad" hidden aria-label="이동 조이스틱"><div id="knob"></div></div>
+  <div class="overlay" id="intro">
+    <form class="box" id="introform">
+      <h1>칠면조 물산</h1>
+      <p>무역회사 칠면조 물산 수출팀의 하루를 체험하는 게임입니다. 팀장 1명과 팀원 6명, 모두 7명이 한 사무실을 씁니다.</p>
+      <div class="genders">
+        <button type="button" class="gender" id="g-m" aria-pressed="true"><canvas id="pv-m" width="16" height="24"></canvas><span>남성</span></button>
+        <button type="button" class="gender" id="g-f" aria-pressed="false"><canvas id="pv-f" width="16" height="24"></canvas><span>여성</span></button>
+      </div>
+      <p class="warn">반드시 본인의 성별로 골라주세요.</p>
+      <label class="row" for="nick"><span>이름 (한글 2글자)</span><input id="nick" maxlength="2" autocomplete="off" inputmode="text"></label>
+      <p>팀원들은 당신을 <b id="call">○○씨</b>라고 부릅니다.</p>
+      <div id="err" role="alert"></div>
+      <button class="go" id="go" disabled>시작하기</button>
+    </form>
+  </div>
+  <div class="overlay" id="survey" hidden>
+    <form class="box" id="surveyform">
+      <h1>마지막 설문</h1>
+      <p class="warn">설문을 완료해야 커피 쿠폰 응모가 가능합니다.</p>
+      <fieldset><legend>1</legend>
+        <h2>마지막 미션에서 단톡방에 올라온 팀원의 제안서에 달린 좋아요 갯수를 기억하십니까?</h2>
+        <div class="opts"><label><input type="radio" name="q1" value="예">예</label><label><input type="radio" name="q1" value="아니오">아니오</label></div>
+      </fieldset>
+      <fieldset><legend>2</legend>
+        <h2><label for="q2">1번에 [예]라고 답하셨다면 몇 개였는지 작성해주세요.</label></h2>
+        <input class="field" id="q2" type="number" min="0" max="99" inputmode="numeric" disabled>
+      </fieldset>
+      <fieldset><legend>3</legend>
+        <h2>본인이 선택한 시안이 최종안으로 채택되기를 어느 정도 원하셨습니까?</h2>
+        <div class="opts"><label><input type="radio" name="q3" value="1">1</label><label><input type="radio" name="q3" value="2">2</label><label><input type="radio" name="q3" value="3">3</label><label><input type="radio" name="q3" value="4">4</label><label><input type="radio" name="q3" value="5">5</label></div>
+        <div class="scale"><span>1: 전혀 아님</span><span>5: 매우 원했음</span></div>
+      </fieldset>
+      <fieldset><legend>4</legend>
+        <h2><label for="q4">본인의 MBTI를 알려주세요.</label></h2>
+        <input class="field" id="q4" maxlength="4" autocomplete="off" autocapitalize="characters" placeholder="예: ENFP">
+      </fieldset>
+      <fieldset><legend>5</legend>
+        <h2><label for="q5">커피 쿠폰에 응모할 본인의 전화번호를 작성해주세요.</label></h2>
+        <input class="field" id="q5" type="tel" inputmode="tel" autocomplete="off" maxlength="13" placeholder="010-0000-0000">
+      </fieldset>
+      <div id="serr" role="alert"></div>
+      <button class="go" id="send">제출하기</button>
+    </form>
+  </div>
+  <div class="overlay" id="ending" hidden>
+    <div class="box">
+      <h1>참여해주셔서 진심으로 감사드립니다.</h1>
+      <p><b>여러분의 응답은 수업 팀 프로젝트 분석 목적으로만 사용되며, 전화번호는 커피 쿠폰 추첨 후 폐기됩니다.</b></p>
+      <p>중앙대학교 조직행동론 7조</p>
+      <p id="endmsg" class="warn"></p>
+      <div id="codewrap" hidden><p>아래 응답 코드를 전부 복사해서 실험 담당자에게 보내 주세요.</p><div id="code"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+'use strict';
+var LW = 384, LH = 216, SC = 3, OL = '#2e222f';
+var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+var $ = function (id) { return document.getElementById(id); };
+var HASH = location.hash || '';
+var FAST = /fast/.test(HASH) ? 0.08 : 1;   // #fast shortens scripted waits (testing only). #s1 / #s2 force the condition.
+function rnd(a, b) { return a + Math.random() * (b - a); }
+function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+function mk(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function R(c, x, y, w, h, col) { c.fillStyle = col; c.fillRect(x, y, w, h); }
+function B(c, x, y, w, h, col) { R(c, x, y, w, h, OL); R(c, x + 1, y + 1, w - 2, h - 2, col); }
+function bitmap(c, rows, pal, x, y, s) { s = s || 1; for (var r = 0; r < rows.length; r++) for (var k = 0; k < rows[r].length; k++) { var ch = rows[r][k]; if (ch !== '.') R(c, x + k * s, y + r * s, s, s, pal[ch]); } }
+
+/* ================= characters ================= */
+var SKINS = ['#f5cdaa', '#e8ba96', '#fad6b8', '#d6a580'];
+function drawChar(c, o, dir, f) {
+  var hair = o.hair, suit = o.suit, dark = o.dark, skin = o.skin, pants = o.fem ? suit : o.pants;
+  function legs(x1, x2) {
+    var a = f === 1 ? 1 : 0, b = f === 2 ? 1 : 0;
+    if (o.fem) { R(c, 3, 19, 10, 2, OL); R(c, 4, 19, 8, 1, suit);
+      R(c, x1, 20, 3, 3 - a, OL); R(c, x2, 20, 3, 3 - b, OL); R(c, x1 + 1, 20, 1, 2 - a, skin); R(c, x2 + 1, 20, 1, 2 - b, skin);
+      R(c, x1, 23 - a, 3, 1, '#1c1820'); R(c, x2, 23 - b, 3, 1, '#1c1820');
+    } else { R(c, 3, 19, 10, 1, OL); R(c, x1 - 1, 19, 5, 5 - a, OL); R(c, x2 - 1, 19, 5, 5 - b, OL);
+      R(c, x1, 19, 3, 4 - a, pants); R(c, x2, 19, 3, 4 - b, pants); R(c, x1, 23 - a, 3, 1, '#1c1820'); R(c, x2, 23 - b, 3, 1, '#1c1820'); }
+  }
+  if (dir === 'down' || dir === 'up') {
+    legs(4, 9);
+    R(c, 1, 11, 14, 9, OL); R(c, 2, 11, 12, 8, suit);
+    R(c, 2, 12, 2, 6, dark); R(c, 12, 12, 2, 6, dark); R(c, 2, 18, 2, 1, skin); R(c, 12, 18, 2, 1, skin);
+    R(c, 2, 0, 12, 1, OL); R(c, 1, 1, 14, 10, OL);
+    if (dir === 'down') {
+      R(c, 6, 11, 4, 3, '#f4f4f0'); R(c, 5, 11, 1, 4, dark); R(c, 10, 11, 1, 4, dark);
+      if (o.fem) { R(c, 7, 12, 2, 1, o.tie); } else { R(c, 7, 11, 2, 5, o.tie); }
+      R(c, 2, 1, 12, 4, hair); R(c, 3, 4, 10, 6, skin); R(c, 2, 4, 1, 3, hair); R(c, 13, 4, 1, 3, hair); R(c, 3, 4, 3, 1, hair); R(c, 9, 4, 4, 1, hair);
+      if (o.long) { R(c, 1, 5, 2, 8, hair); R(c, 13, 5, 2, 8, hair); }
+      R(c, 5, 6, 1, 2, OL); R(c, 10, 6, 1, 2, OL); R(c, 7, 9, 2, 1, '#c8786e');
+      if (o.glasses) { R(c, 4, 6, 3, 1, OL); R(c, 9, 6, 3, 1, OL); R(c, 7, 6, 2, 1, OL); }
+    } else {
+      R(c, 2, 1, 12, 9, hair); R(c, 4, 2, 6, 1, o.hl);
+      if (o.long) { R(c, 1, 9, 14, 5, OL); R(c, 2, 9, 12, 4, hair); }
+    }
+  } else { // side, facing right
+    if (f === 1) legs(4, 9); else { R(c, 5, 19, 6, 5, OL); if (o.fem) { R(c, 5, 19, 6, 2, suit); R(c, 7, 21, 2, 2, skin); } else R(c, 6, 19, 4, 4, pants); R(c, 6, 23, 5, 1, '#1c1820'); }
+    R(c, 4, 11, 8, 9, OL); R(c, 5, 11, 6, 8, suit); R(c, 10, 11, 1, 3, '#f4f4f0'); R(c, 7, 12, 2, 6, dark); R(c, 7, 18, 2, 1, skin);
+    R(c, 3, 0, 10, 1, OL); R(c, 2, 1, 12, 10, OL); R(c, 3, 1, 10, 4, hair); R(c, 3, 4, 5, 6, hair); R(c, 8, 5, 5, 5, skin); R(c, 11, 6, 1, 2, OL);
+    if (o.long) { R(c, 2, 9, 6, 5, OL); R(c, 3, 9, 4, 4, hair); }
+    if (o.glasses) R(c, 10, 6, 3, 1, OL);
+  }
+}
+function makeChar(o) {
+  var fr = {};
+  ['down', 'up', 'right'].forEach(function (d) {
+    fr[d] = [0, 1, 2].map(function (f) { var c = mk(16, 24); drawChar(c.getContext('2d'), o, d, f); return c; });
+  });
+  fr.left = fr.right.map(function (src) { var c = mk(16, 24), x = c.getContext('2d'); x.translate(16, 0); x.scale(-1, 1); x.drawImage(src, 0, 0); return c; });
+  return fr;
+}
+var LOOKS_M = [
+  { hair: '#2a2830', hl: '#4a4854', suit: '#34406a', dark: '#28325a', pants: '#28325a', tie: '#c8483c' },
+  { hair: '#5a3826', hl: '#7a5238', suit: '#4a4a52', dark: '#3a3a42', pants: '#3a3a42', tie: '#3c78c8' },
+  { hair: '#1e1c22', hl: '#3c3a44', suit: '#2c2c34', dark: '#202028', pants: '#202028', tie: '#e0b040', glasses: true },
+  { hair: '#6e4a2c', hl: '#8e6a44', suit: '#5a4638', dark: '#48382c', pants: '#48382c', tie: '#3c9a6a' }
+];
+var LOOKS_F = [
+  { fem: true, long: true, hair: '#5a3826', hl: '#7a5238', suit: '#3c4670', dark: '#2e3860', tie: '#e0b040' },
+  { fem: true, long: true, hair: '#1e1c22', hl: '#3c3a44', suit: '#5c3c50', dark: '#4a2e40', tie: '#f0f0f0' },
+  { fem: true, hair: '#8a5a30', hl: '#aa7a48', suit: '#40484c', dark: '#30383c', tie: '#c8483c', glasses: true },
+  { fem: true, long: true, hair: '#3a2c3c', hl: '#5a4a5c', suit: '#2c2c34', dark: '#202028', tie: '#6ab0e0' }
+];
+function look(base, i) { var o = {}; for (var k in base) o[k] = base[k]; o.skin = SKINS[i % SKINS.length]; return o; }
+var PLAYER_M = look({ hair: '#3a2a22', hl: '#5a4636', suit: '#2e4a78', dark: '#243c64', pants: '#243c64', tie: '#d85a4a' }, 0);
+var PLAYER_F = look({ fem: true, long: true, hair: '#3a2a22', hl: '#5a4636', suit: '#2e4a78', dark: '#243c64', tie: '#d85a4a' }, 2);
+
+/* ================= office map ================= */
+var DESKS = [ // x,y = top-left of desk surface
+  { x: 212, y: 70, w: 48, h: 16, lead: true, via: [[270, 50], [150, 50]], spot: [132, 88], enter: [[270, 50]] },
+  { x: 20, y: 104, w: 40, h: 16, via: [], spot: [72, 92], enter: [[70, 56]] },
+  { x: 120, y: 132, w: 40, h: 16, via: [[170, 108]], spot: [126, 108], enter: [[170, 50]] },
+  { x: 44, y: 168, w: 40, h: 16, via: [[94, 130]], spot: [84, 108], enter: [[94, 60]] },
+  { x: 284, y: 106, w: 40, h: 16, via: [[334, 50], [150, 50], [150, 112]], spot: [104, 112], enter: [[334, 50]] },
+  { x: 322, y: 160, w: 40, h: 16, via: [[372, 50], [156, 50]], spot: [152, 104], enter: [[372, 50]] },
+  { x: 206, y: 176, w: 40, h: 16, me: true }
+];
+var DOOR = { x: 92, w: 24 }, DX = 104;
+function seatPt(d) { return [d.x + d.w / 2, d.y - 4]; }
+function exitPt(d) { return [d.x + d.w + 10, d.y - 4]; }
+var TURKEY = [
+  '......DODODODO......', '....DOTDOTDOTDOD....', '...DTDODTDODTDODT...', '..DODTDODNNDODTDOD..', '..TDODTDNNNNDTDODT..', '.DODTDODNWKNDODTDOD.',
+  '.TDODTDNNNNYYDTDODT.', '.DODTDNNNNRNDODTDOD.', '..DTDNNNNNRNNDTDOD..', '..ODNNNNNNNNNNDTDO..', '...DNNNNTNNNNNNDT...', '...NNNNTTTNNNNNN....',
+  '...NNNTTTTTNNNNN....', '....NNNTTTNNNNN.....', '.....NNNNNNNNN......', '......NNNNNNN.......', '.......Y...Y........', '......YY..YY........'];
+var TPAL = { N: '#7a4a2a', D: '#5a3620', O: '#e08a3c', R: '#d8403a', Y: '#f0c040', W: '#ffffff', K: '#1c1820', T: '#c89a66' };
+var blocks = [];
+function drawWallFloor(c) {
+  for (var ty = 0; ty < LH; ty += 16) for (var tx = 0; tx < LW; tx += 16) {
+    R(c, tx, ty, 16, 16, ((tx + ty) / 16) % 2 ? '#c4b295' : '#cbba9e'); R(c, tx, ty + 15, 16, 1, '#b5a387'); R(c, tx + 15, ty, 1, 16, '#b5a387');
+  }
+  B(c, 176, 96, 132, 100, '#56807f'); R(c, 179, 99, 126, 94, '#608d8f');
+  for (var x = 179; x < 304; x += 4) for (var y = 99; y < 192; y += 4) if (((x + y) >> 2) % 2 === 0) R(c, x + 1, y + 1, 1, 1, '#588386');
+  R(c, 0, 0, LW, 36, '#e8dec8'); R(c, 0, 0, LW, 5, '#d6c9b0'); R(c, 0, 31, LW, 5, '#7a5c43'); R(c, 0, 31, LW, 1, '#967456'); R(c, 0, 35, LW, 1, OL);
+  [262].forEach(function (wx) {
+    B(c, wx, 6, 40, 22, '#8fd0ea'); R(c, wx + 1, 7, 38, 3, '#c4e8f5'); R(c, wx + 19, 7, 2, 20, '#f0ece0'); R(c, wx + 1, 16, 38, 2, '#f0ece0');
+    R(c, wx + 5, 11, 7, 2, '#fff'); R(c, wx + 26, 21, 8, 2, '#fff'); R(c, wx - 2, 28, 44, 2, '#f0ece0'); R(c, wx - 2, 30, 44, 1, OL);
+  });
+  // company sign, clock, framed turkey painting
+  B(c, 122, 8, 68, 17, '#2e4a78'); R(c, 123, 9, 66, 1, '#4a6a9c'); txtC(c, '칠면조 물산', 156, 10, '#fff6c8', 'center');
+  B(c, 194, 10, 11, 11, '#fafaf5'); R(c, 199, 12, 1, 4, OL); R(c, 199, 15, 3, 1, OL);
+  B(c, 213, 3, 30, 27, '#d8a83c'); R(c, 214, 4, 28, 1, '#f2d27a'); B(c, 215, 5, 26, 23, '#dfeee0'); R(c, 216, 22, 24, 5, '#9ccb8a'); bitmap(c, TURKEY, TPAL, 218, 7);
+  B(c, DOOR.x, 3, DOOR.w, 33, '#8c603e'); R(c, DOOR.x + 3, 6, 18, 12, '#a0704a'); R(c, DOOR.x + 3, 20, 18, 13, '#a0704a'); R(c, DOOR.x + 18, 20, 2, 3, '#f0d05a');
+  R(c, DOOR.x - 1, 36, DOOR.w + 2, 5, '#9a7a5a'); R(c, DOOR.x, 37, DOOR.w, 3, '#b08e6a');
+  B(c, 318, 4, 52, 32, '#8c603e');
+  var cols = ['#c8463c', '#3c6ebe', '#f0d05a', '#3c965a', '#e6e6eb', '#aa6ebe', '#d66058'];
+  for (var r = 0; r < 2; r++) { R(c, 320, 7 + r * 14, 48, 12, '#60402c'); for (var k = 0; k < 13; k++) R(c, 321 + k * 3.6 | 0, 9 + r * 14 + (k % 3 === 0 ? 1 : 0), 3, 10, cols[(k * 3 + r * 2) % 7]); }
+}
+function propSprite(w, h, fn) { var c = mk(w, h); fn(c.getContext('2d')); return c; }
+function plantSpr() { return propSprite(16, 24, function (c) {
+  B(c, 3, 14, 10, 9, '#c4704c'); R(c, 4, 15, 8, 1, '#dc8c64');
+  [[1, 5, 7, 9], [8, 4, 7, 10], [3, 0, 10, 10]].forEach(function (e, i) { B(c, e[0], e[1], e[2], e[3], i === 2 ? '#54a45e' : '#3c844c'); });
+  R(c, 6, 2, 3, 2, '#82c878'); R(c, 3, 8, 2, 2, '#6ebe6e'); R(c, 11, 7, 2, 2, '#6ebe6e');
+}); }
+function coolerSpr() { return propSprite(14, 36, function (c) {
+  B(c, 0, 14, 14, 22, '#eceef2'); B(c, 2, 0, 10, 15, '#96cdeb'); R(c, 4, 2, 3, 6, '#d2eefa'); R(c, 3, 22, 3, 2, '#3c6ebe'); R(c, 8, 22, 3, 2, '#c8463c'); R(c, 2, 28, 10, 5, '#c8ccd4');
+}); }
+function printerSpr() { return propSprite(28, 24, function (c) {
+  B(c, 0, 0, 28, 24, '#ced0d6'); R(c, 2, 2, 24, 6, '#eceef2'); R(c, 4, 4, 14, 2, '#fafafa'); R(c, 20, 3, 4, 3, '#5ac878'); R(c, 2, 14, 24, 2, OL); R(c, 4, 17, 20, 5, '#b4b6be');
+}); }
+function sofaSpr() { return propSprite(56, 20, function (c) {
+  B(c, 0, 0, 56, 20, '#be6254'); R(c, 2, 2, 52, 6, '#d67a68'); R(c, 2, 9, 25, 9, '#cc6e5e'); R(c, 29, 9, 25, 9, '#cc6e5e'); R(c, 27, 9, 2, 10, OL);
+}); }
+function cabinetSpr() { return propSprite(20, 28, function (c) {
+  B(c, 0, 0, 20, 28, '#96a0b0'); R(c, 2, 2, 16, 11, '#acb6c6'); R(c, 2, 15, 16, 11, '#acb6c6'); R(c, 7, 6, 6, 2, OL); R(c, 7, 19, 6, 2, OL);
+}); }
+var PROPS = [
+  { s: plantSpr, x: 28, y: 30 }, { s: plantSpr, x: 300, y: 30 }, { s: coolerSpr, x: 4, y: 40 }, { s: printerSpr, x: 350, y: 190 },
+  { s: sofaSpr, x: 110, y: 194 }, { s: cabinetSpr, x: 2, y: 186 }, { s: cabinetSpr, x: 22, y: 186 }, { s: plantSpr, x: 172, y: 190 }
+];
+var bg, propSprs = [];
+function buildMap() {
+  bg = mk(LW, LH); drawWallFloor(bg.getContext('2d'));
+  blocks = [{ x: 318, y: 30, w: 52, h: 10 }];
+  PROPS.forEach(function (p) { var s = p.s(); propSprs.push({ spr: s, x: p.x, y: p.y, by: p.y + s.height }); blocks.push({ x: p.x, y: p.y + s.height - 8, w: s.width, h: 8 }); });
+  DESKS.forEach(function (d) { blocks.push({ x: d.x - 4, y: d.y - 12, w: d.w + 8, h: d.h + 13 }); });
+}
+function drawDeskBack(c, d, seated, spr) {
+  var cx = d.x + d.w / 2;
+  B(c, d.x - 4, d.y - 22, d.w + 8, 12, '#7c8aa6'); R(c, d.x - 3, d.y - 21, d.w + 6, 2, '#a2b0c8');
+  for (var x = d.x - 2; x < d.x + d.w + 3; x += 3) R(c, x, d.y - 17, 1, 5, '#70809c');
+  B(c, cx - 9, d.y - 12, 18, 12, '#40465c'); R(c, cx - 7, d.y - 10, 14, 2, '#545c76');
+  if (seated) c.drawImage(spr.down[0], 0, 0, 16, 18, cx - 8, d.y - 18, 16, 18);
+}
+function drawDeskFront(c, d) {
+  var top = d.lead ? '#bc8054' : '#d6a068', face = d.lead ? '#8e5e3c' : '#a07046';
+  c.fillStyle = 'rgba(40,30,40,.2)'; c.fillRect(d.x + 2, d.y + d.h, d.w, 3);
+  B(c, d.x, d.y, d.w, d.h, top); R(c, d.x + 1, d.y + 1, d.w - 2, 1, d.lead ? '#d49c70' : '#e8b880'); R(c, d.x + 1, d.y + d.h - 6, d.w - 2, 5, face); R(c, d.x + 1, d.y + d.h - 7, d.w - 2, 1, '#785438');
+  B(c, d.x - 4, d.y - 22, 4, d.h + 22, '#7c8aa6'); R(c, d.x - 3, d.y - 21, 2, 2, '#a2b0c8');
+  var mx = d.x + d.w - 18;
+  B(c, mx, d.y - 7, 15, 10, '#464a56'); R(c, mx + 2, d.y - 5, 11, 2, '#5c626e'); R(c, mx + 5, d.y + 3, 5, 2, OL); R(c, mx + 3, d.y + 5, 9, 1, OL);
+  B(c, d.x + 4, d.y + 3, 8, 6, '#fafaf5'); R(c, d.x + 6, d.y + 5, 4, 1, '#aaaab4');
+  if (d.lead) { B(c, d.x + 16, d.y + 3, 12, 5, '#f0d05a'); }
+}
+
+/* ================= state & timing ================= */
+var NAMES_M = ['상진', '연겸', '민재', '도현', '하준', '태오', '건우', '시우', '준서', '경민'];
+var NAMES_F = ['서윤', '지안', '유나', '수빈', '채원', '다인', '예린', '소희', '나은'];
+var S = { scene: 'intro', t: 0, name: '', fem: false, clock: '08:50', npcs: [], bubbles: [], hint: '', fade: 0, timers: [], tweens: [], keys: {},
+  player: { x: DX, y: 44, dir: 'down', walk: 0, seated: false }, ctrl: false, bangDesk: false, choice: null, pc: null, chat: [], wipe: 0,
+  rec: { v: 1, events: [] } };
+function after(sec, fn) { S.timers.push({ t: S.t + sec * FAST, fn: fn }); }
+function wait(sec) { return new Promise(function (r) { after(sec, r); }); }
+function tween(sec, fn) { return new Promise(function (r) { S.tweens.push({ t0: S.t, d: Math.max(0.01, sec * Math.max(FAST, 0.3)), fn: fn, r: r }); }); }
+function fadeOut(sec) { return tween(sec || 0.45, function (p) { S.fade = p; }); }
+function fadeIn(sec) { return tween(sec || 0.45, function (p) { S.fade = 1 - p; }); }
+function say(who, text, dur) { S.bubbles.push({ who: who, text: text.replace(/\{n\}/g, S.name), until: S.t + (dur || 3) * FAST }); }
+function moveTo(a, pts, speed) { return new Promise(function (r) { a.path = pts.map(function (p) { return p.slice(); }); a.speed = speed || 72; a.pathRes = r; }); }
+function ev(e, o) { o = o || {}; o.e = e; o.t = Math.round(S.t * 100) / 100; S.rec.events.push(o); }
+function setupTeam() {
+  var m = shuffle(NAMES_M.filter(function (n) { return n !== S.name; })), f = shuffle(NAMES_F.filter(function (n) { return n !== S.name; }));
+  var genders = shuffle([0, 0, 0, 1, 1, 1]), mi = 0, fi = 0;
+  S.npcs = [];
+  DESKS.forEach(function (d, i) {
+    if (d.me) return;
+    var fem = genders[S.npcs.length] === 1, base = fem ? LOOKS_F[fi % 4] : LOOKS_M[mi % 4], nm = fem ? f[fi] : m[mi];
+    if (fem) fi++; else mi++;
+    S.npcs.push({ desk: i, d: d, name: nm, lead: !!d.lead, col: base.suit, spr: makeChar(look(base, i)), seated: true, x: 0, y: 0, dir: 'down', walk: 0, path: null, gone: false });
+  });
+  S.pspr = makeChar(S.fem ? PLAYER_F : PLAYER_M);
+  S.lead = S.npcs[0]; S.mates = S.npcs.slice(1);
+}
+function myDesk() { return DESKS[6]; }
+function nearDesk() { var d = myDesk(), p = S.player; return Math.abs(p.x - (d.x + d.w / 2)) < 46 && Math.abs(p.y - (d.y + 4)) < 34; }
+function face(a, tx, ty) { var dx = tx - a.x, dy = ty - a.y; a.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); }
+function standUp(n) { var s = seatPt(n.d); n.seated = false; n.x = s[0]; n.y = s[1]; n.walk = 0; }
+async function sitDown(n, pts) { await moveTo(n, pts.concat([exitPt(n.d), seatPt(n.d)])); n.seated = true; }
+
+/* ================= choices ================= */
+// Resolves { i, rt, to }: i = option index (-1 when the 10 s ran out), rt in seconds. Choice timers always run in real time.
+function choose(opts, sec, o) {
+  o = o || {};
+  return new Promise(function (res) { S.choice = { opts: opts.map(function (s) { return s.replace(/\{n\}/g, S.name); }), sec: sec, t0: S.t, rects: o.rects || [], custom: !!o.custom, prompt: o.prompt || '선택하세요', res: res }; });
+}
+function endChoice(i) { var c = S.choice; if (!c) return; S.choice = null; c.res({ i: i, rt: Math.round((S.t - c.t0) * 100) / 100, to: i < 0 }); }
+function choiceTop() { var c = S.choice; return LH - (18 + c.opts.length * 17 + 5) - 2; }
+
+/* ================= story ================= */
+var WELCOME = ['환영해요~', '잘 부탁해요', '반가워요!', '잘 왔어요~', '어서 와요!'];
+var LUNCH = ['아 잘 먹었다~', '배부르다', '마라로제두쫀쿠 최고…', '커피 한 잔 해야겠다', '졸리면 안 되는데…'];
+async function story() {
+  var p = S.player, lead = S.lead, mates = S.mates, r;
+  // #1 caption
+  S.scene = 'caption'; await fadeIn(0.6); await wait(5.5); await fadeOut(0.5);
+  // #2 elevator: 10 s in total, thought bubble for the middle 5 s
+  S.scene = 'elev'; S.el = { t0: S.t, dur: 10 * FAST, bubble: false }; S.clock = '08:55'; await fadeIn(0.4);
+  await wait(2.5); S.el.bubble = true; await wait(5); S.el.bubble = false; await wait(2.5);
+  S.el.ding = true; await wait(0.5);
+  await tween(0.6, function (q) { S.wipe = q; });
+  // #3 office: walk in, greeting choice
+  S.scene = 'office'; S.clock = '09:00'; p.x = DX; p.y = 44; p.dir = 'down';
+  await tween(0.7, function (q) { S.wipe = 1 - q; });
+  await moveTo(p, [[DX, 84]], 44);
+  r = await choose(['안녕하세요 신입사원 {n}입니다!', '이번에 새로 입사한 {n}입니다! 잘 부탁드립니다!', '신병 받아라~'], 10, { prompt: '인삿말을 골라 주세요' });
+  if (r.to) r.i = 0;
+  S.rec.greet = { c: r.i + 1, rt: r.rt, to: r.to };
+  var gl = ['안녕하세요 신입사원 {n}입니다!', '새로 입사한 {n}입니다! 잘 부탁드립니다!', '신병 받아라~'][r.i];
+  say('me', gl, 3.2);
+  var order = [lead].concat(shuffle(mates)), moves = [];
+  for (var i = 0; i < order.length; i++) {
+    (function (n) { standUp(n); moves.push(moveTo(n, [exitPt(n.d)].concat(n.d.via, [n.d.spot]), 86).then(function () { face(n, p.x, p.y); })); })(order[i]);
+  }
+  await Promise.all(moves);
+  p.dir = 'down'; await wait(0.4);
+  say(lead, r.i === 2 ? '유쾌한 친구가 들어왔구만.' : '씩씩한 친구가 들어왔구만.', 2.6); await wait(2.6);
+  var wl = shuffle(WELCOME), ms = shuffle(mates);
+  for (i = 0; i < ms.length; i++) { say(ms[i], wl[i], 2.2); await wait(rnd(1, 2)); }
+  await wait(1);
+  say('me', '열심히 하겠습니다!', 2.2); await wait(2.4);
+  var back = Promise.all(order.map(function (n) { return sitDown(n, n.d.via.slice().reverse()); }));
+  // free walk to my desk right away, while the team heads back
+  await walkToDesk();
+  await back;
+  // #4 team lead comes over
+  S.clock = '09:10'; await wait(0.6);
+  standUp(lead); await moveTo(lead, [exitPt(lead.d), [270, 150], [260, 172]], 72); lead.dir = 'left';
+  say(lead, '{n}씨 컴퓨터에 당장 처리해야할 서류를 넣어뒀으니 그것부터 부탁해요.', 4.2); await wait(4.4);
+  await sitDown(lead, [[270, 150]]);
+  await wait(0.3); await fadeOut();
+  // #5 document check: 3 pairs, 15 s each
+  S.scene = 'pc'; S.clock = '09:20'; S.rec.docs = [];
+  for (i = 0; i < 3; i++) {
+    S.pc = { mode: 'docs', idx: i, doc: null, msg: '' };
+    if (i === 0) { S.pc.msg = '서로 다른 부분을 양쪽 서류 모두 클릭하세요\n서류는 3쌍, 제한 시간은 각 17초입니다\n곧 시작합니다…'; await fadeIn(); await wait(6.2); S.pc.msg = ''; }
+    var res = await runDoc(i);
+    S.rec.docs.push(res);
+    S.pc.msg = res.found === res.total ? '확인 완료!' : '시간 초과';
+    await wait(1.1); S.clock = ['09:40', '10:05', '10:30'][i];
+  }
+  S.pc.msg = '대조 끝! 결과 파일을 저장했습니다'; await wait(1.6);
+  await fadeOut();
+  // send the file to the group chat
+  S.chat = [{ who: lead, text: '{n}씨, 서류 확인 끝나면 결과 파일을 여기 단톡방에 올려줘요.'.replace('{n}', S.name), unread: 0 }];
+  S.pc = { mode: 'send', file: { x: 44, y: 60 }, drag: false };
+  await fadeIn();
+  await new Promise(function (ok) { S.pc.res = ok; });
+  ev('file_sent');
+  var mine = pushMsg({ me: true, file: '결재서류_대조결과.xlsx', kind: 'x', unread: 6, likes: 0, hold: true });
+  S.pc.mode = 'chat';
+  await likesUp(mine, 6, 1, 2);
+  await wait(1.2);
+  var praiser = pick(mates);
+  pushMsg({ who: praiser, text: '깔끔하게 잘했네요.', unread: 5 }, 0.3, 1.2);
+  await wait(1.6);
+  r = await choose(['감사합니다!!', '챙겨주신 덕분입니다!', '이 정도는 껌이죠 ㅋ'], 10, { prompt: '답장을 골라 주세요' });
+  if (r.to) r.i = 0;
+  S.rec.reply = { c: r.i + 1, rt: r.rt, to: r.to };
+  pushMsg({ me: true, text: ['감사합니다!!', '챙겨주신 덕분입니다!', '이 정도는 껌이죠 ㅋ'][r.i], unread: 6 }, 0.3, 1.2);
+  var reacts = r.i === 2 ? ['ㅋㅋㅋㅋ', 'ㅋㅋㅋㅋㅋㅋ', 'ㅋㅋㅋ 패기 좋네요'] : ['^^', 'ㅎㅎ', '^^b'], rs = shuffle(mates).slice(0, 3);
+  for (i = 0; i < 3; i++) { await wait(rnd(0.9, 1.6)); pushMsg({ who: rs[i], text: reacts[i], unread: 5 }, 0.3, 1.0); }
+  // #6 welcome lunch
+  await wait(2); S.clock = '11:30';
+  var host = pick(mates.filter(function (n) { return n !== praiser; }));
+  var lunch = pushMsg({ who: host, text: '참고로 오늘 ' + S.name + '씨 환영식 점심 회식이 있어요. 메뉴는 마라로제두쫀쿠. 괜찮으시면 \u0001 눌러주세요.', unread: 5, likes: 0, hold: true });
+  await likesUp(lunch, 5, 1, 1);
+  lunch.canLike = true; var t0 = S.t;
+  await new Promise(function (ok) { lunch.res = ok; });
+  S.rec.lunchLikeRt = Math.round((S.t - t0) * 100) / 100; ev('lunch_like');
+  await wait(1.2);
+  pushMsg({ who: lead, text: '내 최애 메뉴야', unread: 5 }, 0.3, 1.0);
+  await wait(6); await fadeOut();
+  // #7 back from lunch
+  S.scene = 'office'; S.pc = null; S.clock = '13:00'; S.bubbles = [];
+  S.npcs.forEach(function (n) { n.seated = false; n.gone = true; });
+  p.seated = false; p.hidden = true;
+  await fadeIn();
+  var ln = shuffle(LUNCH), inOrder = shuffle(mates), li = 0; inOrder.splice(1, 0, lead); inOrder.splice(3, 0, 'me');
+  var seats = [];
+  for (i = 0; i < inOrder.length; i++) {
+    var n = inOrder[i];
+    if (n === 'me') { p.hidden = false; p.x = DX; p.y = 42; moveTo(p, [[DX, 54], [122, 70]], 60).then(function () { p.dir = 'down'; }); say('me', '잘 먹었습니다!', 1.5); }
+    else { n.gone = false; n.x = DX; n.y = 42; n.dir = 'down'; say(n, n.lead ? '자, 오후도 힘냅시다.' : ln[li++], 1.5); seats.push(sitDown(n, [[DX, 50]].concat(n.d.enter))); }
+    await wait(1.3);
+  }
+  await walkToDesk();
+  await Promise.all(seats);
+  await wait(0.4); await fadeOut();
+  // #8 desktop, notification, chat
+  S.scene = 'pc'; S.clock = '13:10'; S.pc = { mode: 'desk', toast: null };
+  await fadeIn(); await wait(1.5);
+  var asker = pick(mates);
+  S.pc.toast = { who: asker };
+  await new Promise(function (ok) { S.pc.res = ok; });
+  ev('toast_click');
+  S.pc = { mode: 'chat' };
+  pushMsg({ who: asker, file: '튀르키예_제안서_시안.pdf', kind: 'p', unread: 5 }, 0.4, 1.5);
+  await wait(2);
+  pushMsg({ who: asker, text: '이번 튀르키예 거래처 제안서 시안입니다. 보시고 마음에 드는 안으로 알려주시면 됩니다.', unread: 5 }, 0.4, 1.5);
+  await wait(4.5); await fadeOut();
+  // #9 four designs
+  S.pc = { mode: 'designs' }; await fadeIn(0.3);
+  r = await choose(['A', 'B', 'C', 'D'], 15, { custom: true, rects: DESIGN_RECTS });
+  if (r.to) r.i = Math.floor(Math.random() * 4);
+  S.rec.design = { c: 'ABCD'[r.i], rt: r.rt, to: r.to };
+  S.pc.picked = r.i; await wait(0.9); await fadeOut(0.3);
+  // #10 a teammate posts a different design first
+  var mate = pick(mates.filter(function (n) { return n !== asker; })), other = pick([0, 1, 2, 3].filter(function (k) { return k !== r.i; }));
+  S.rec.mateDesign = 'ABCD'[other]; S.clock = '13:20';
+  S.pc = { mode: 'chat' };
+  var img = pushMsg({ who: mate, img: other, unread: 5, likes: 0, hold: true });
+  var cap = pushMsg({ who: mate, text: '저는 시안 ' + 'ABCD'[other] + '가 제일 좋은 것 같습니다!', unread: 5, hold: true });
+  await fadeIn(0.3); await wait(0.8);
+  for (i = 5; i > 0; i--) { await wait(rnd(2, 2.5)); img.unread--; cap.unread--; }
+  // condition 1: four thumbs pile up at 1-2 s. condition 2: nothing happens for the same length of time.
+  for (i = 0; i < 4; i++) { await wait(rnd(1, 2)); if (S.rec.cond === 1) img.likes++; }
+  await wait(1.2);
+  // #11 final choice
+  S.rec.likesShown = img.likes;
+  r = await choose(['단톡방에 내 의견을 피력한다', '팀원의 의견에 따른다 (\u0001 누른다)', asker.name + '씨에게 개인 톡으로 내 의견을 피력한다'], 10, { prompt: '어떻게 할까요?' });
+  S.rec.final = { c: r.to ? 0 : r.i + 1, rt: r.rt, to: r.to };
+  S.rec.playSec = Math.round(S.t);
+  saveRecord();
+  await fadeOut(0.9);
+  S.scene = 'end'; $('survey').hidden = false;
+}
+async function walkToDesk() {
+  var p = S.player;
+  S.ctrl = true; S.bangDesk = true; S.hint = (coarse ? '왼쪽 아래 조이스틱' : 'WASD 키') + '으로 이동'; S.moveHint = true; S.seatHintAt = S.t + 30; S.seatHinted = false;
+  await new Promise(function (ok) { S.sitRes = ok; });
+  S.ctrl = false; S.bangDesk = false; S.hint = ''; p.seated = true; p.path = null; ev('sit');
+}
+
+/* ================= document check ================= */
+var ROWS = ['거래처', '품목', '수량', '단가', '금액', '납기일', '도착항'];
+var DOCS = [
+  { a: ['Nordhaus GmbH', '스텐 텀블러 500ml', '1,200개', 'USD 4.80', 'USD 5,760', '12월 18일', '함부르크'], diff: { 2: '1,500개', 5: '12월 28일' } },
+  { a: ['Anatolia Ticaret', '보온 도시락통 3단', '800개', 'USD 7.50', 'USD 6,000', '1월 9일', '이스탄불'], diff: { 3: 'USD 7.80', 6: '이즈미르' } },
+  { a: ['Pacific Goods Co.', '스텐 빨대 세트', '3,000개', 'USD 1.20', 'USD 3,600', '1월 22일', '롱비치'], diff: { 1: '스텐 수저 세트', 4: 'USD 3,900', 5: '1월 27일' } }
+];
+var DOCX = [26, 196], DOCW = 162, DOCY = 58, DOCH = 15;
+function runDoc(i) {
+  return new Promise(function (res) {
+    var src = DOCS[i], swap = Math.random() < 0.5, b = src.a.map(function (v, k) { return src.diff[k] || v; });
+    S.pc.doc = { L: swap ? b : src.a, R: swap ? src.a : b, diff: Object.keys(src.diff).map(Number), hit: {}, t0: S.t, sec: 17, miss: 0, flash: null, done: false,
+      end: function () { var d = S.pc.doc; if (d.done) return; d.done = true; res({ found: found(d), total: d.diff.length, miss: d.miss, sec: Math.round((S.t - d.t0) * 100) / 100 }); } };
+  });
+}
+function found(d) { return d.diff.filter(function (k) { return d.hit['L' + k] && d.hit['R' + k]; }).length; }
+
+/* ================= chat ================= */
+function pushMsg(m, a, b) {
+  S.chat.push(m);
+  if (m.unread && !m.hold) (function step() { after(rnd(2, 2.5), function () { m.unread--; if (m.unread > 0) step(); }); })();
+  return m;
+}
+// whoever reacts has read the message, so the unread number drops together with each thumbs-up
+async function likesUp(m, n, a, b) { for (var i = 0; i < n; i++) { await wait(rnd(a, b)); m.likes++; if (m.unread > 0) m.unread--; } }
+
+/* ================= update ================= */
+function blocked(x, y) {
+  if (x < 6 || x > LW - 6 || y > LH - 2) return true;
+  if (y < 41 && !(x > DOOR.x + 3 && x < DOOR.x + DOOR.w - 3 && y >= 37)) return true;
+  for (var i = 0; i < blocks.length; i++) { var b = blocks[i]; if (x + 5 > b.x && x - 5 < b.x + b.w && y > b.y && y - 4 < b.y + b.h) return true; }
+  return false;
+}
+function stepActor(a, dt) {
+  if (!a.path) return;
+  var w = a.path[0], dx = w[0] - a.x, dy = w[1] - a.y, dist = Math.hypot(dx, dy), st = a.speed * dt * (FAST < 1 ? 6 : 1);
+  if (dist <= st) { a.x = w[0]; a.y = w[1]; a.path.shift(); if (!a.path.length) { a.path = null; a.walk = 0; var r = a.pathRes; a.pathRes = null; if (r) r(); } }
+  else { a.x += dx / dist * st; a.y += dy / dist * st; a.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); a.walk += dt * 8; }
+}
+function update(dt) {
+  S.t += dt; var i;
+  for (i = S.timers.length - 1; i >= 0; i--) if (S.timers[i].t <= S.t) { var f = S.timers[i].fn; S.timers.splice(i, 1); f(); }
+  for (i = S.tweens.length - 1; i >= 0; i--) { var tw_ = S.tweens[i], q = Math.min(1, (S.t - tw_.t0) / tw_.d); tw_.fn(q); if (q >= 1) { S.tweens.splice(i, 1); tw_.r(); } }
+  S.bubbles = S.bubbles.filter(function (b) { return b.until > S.t; });
+  if (S.choice && S.t - S.choice.t0 >= S.choice.sec) endChoice(-1);
+  if (S.scene === 'pc' && S.pc && S.pc.doc && !S.pc.doc.done && S.t - S.pc.doc.t0 >= S.pc.doc.sec) S.pc.doc.end();
+  if (S.scene !== 'office') return;
+  S.npcs.forEach(function (n) { stepActor(n, dt); });
+  var p = S.player; stepActor(p, dt);
+  if (S.ctrl && !p.seated) {
+    var k = S.keys, dx = (k.right ? 1 : 0) - (k.left ? 1 : 0), dy = (k.down ? 1 : 0) - (k.up ? 1 : 0);
+    var jm = Math.hypot(JOY.x, JOY.y), analog = false;
+    if (!dx && !dy && jm > 0.22) { var jv = Math.max(0.55, jm); dx = JOY.x / jm * jv; dy = JOY.y / jm * jv; analog = true; }
+    if (dx || dy) {
+      var sp = 62 * dt, n = analog ? 1 : (dx && dy ? 0.7071 : 1);
+      if (!blocked(p.x + dx * sp * n, p.y)) p.x += dx * sp * n;
+      if (!blocked(p.x, p.y + dy * sp * n)) p.y += dy * sp * n;
+      p.dir = (analog ? Math.abs(dx) >= Math.abs(dy) : dx) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); p.walk += dt * 8;
+      if (S.moveHint) { S.moveHint = false; S.hint = ''; }
+    } else if (!p.path) p.walk = 0;
+    if (S.t >= S.seatHintAt && !S.seatHinted) { S.seatHinted = true; S.moveHint = false; S.hint = '느낌표(!)가 뜬 내 자리로 가서 앉으세요'; }
+  }
+}
+
+/* ================= render helpers ================= */
+var FONT = '11px Galmuri11, monospace';
+function txtC(c, s, x, y, col, align) { c.font = FONT; c.textBaseline = 'top'; c.textAlign = align || 'left'; c.fillStyle = col; c.fillText(s, Math.round(x), Math.round(y)); }
+function txt(s, x, y, col, align) { txtC(ctx, s, x, y, col, align); }
+function tw(s) { ctx.font = FONT; return Math.ceil(ctx.measureText(s).width); }
+var THUMB = ['....YY...', '....YY...', '...YYY...', '..YYYYYYY', 'BBYYYYYYY', 'BBYYYYYYY', 'BBYYYYYYY', 'BBYYYYYY.', 'BBYYYYY..'], THPAL = { Y: '#f2c94c', B: '#4c8be2' };
+function thumb(x, y) { bitmap(ctx, THUMB, THPAL, x, y); }
+// text with \u0001 standing for the thumbs-up emoji
+function mw(s) { var parts = s.split('\u0001'), w = 0; parts.forEach(function (q, i) { w += tw(q) + (i ? 11 : 0); }); return w; }
+function mtxt(s, x, y, col) { s.split('\u0001').forEach(function (q, i) { if (i) { thumb(x + 1, y + 1); x += 11; } txt(q, x, y, col); x += tw(q); }); }
+function wrap(s, maxW) {
+  var words = s.split(' '), lines = [], cur = '';
+  words.forEach(function (w) {
+    var t = cur ? cur + ' ' + w : w;
+    if (mw(t) <= maxW) { cur = t; return; }
+    if (cur) lines.push(cur); cur = w;
+    while (mw(cur) > maxW) { var k = cur.length - 1; while (k > 1 && mw(cur.slice(0, k)) > maxW) k--; lines.push(cur.slice(0, k)); cur = cur.slice(k); }
+  });
+  if (cur) lines.push(cur); return lines;
+}
+function bang(x, y) { var o = Math.round(Math.sin(S.t * 6) * 2); B(ctx, x - 4, y - 14 + o, 8, 13, '#e2372c'); R(ctx, x - 1, y - 12 + o, 2, 6, '#fff'); R(ctx, x - 1, y - 5 + o, 2, 2, '#fff'); }
+var BFONT = '8px Galmuri11, monospace';   // speech is drawn about 30% smaller than UI text, inside a roomier bubble
+function bubble(text, hx, hy) {
+  ctx.font = BFONT; var w = Math.ceil(ctx.measureText(text).width) + 14, h = 18, x = Math.max(2, Math.min(LW - w - 2, Math.round(hx - w / 2))), y = Math.max(22, hy - 21); hx = Math.max(x + 4, Math.min(x + w - 5, Math.round(hx)));
+  B(ctx, x, y, w, h, '#fffdf4'); R(ctx, hx - 2, y + h - 1, 5, 1, '#fffdf4'); R(ctx, hx - 2, y + h, 5, 1, OL); R(ctx, hx - 1, y + h, 3, 1, '#fffdf4'); R(ctx, hx - 1, y + h + 1, 3, 1, OL); R(ctx, hx, y + h + 1, 1, 1, '#fffdf4'); R(ctx, hx, y + h + 2, 1, 1, OL);
+  ctx.font = BFONT; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillStyle = OL; ctx.fillText(text, x + 7, y + h / 2 + 0.5);
+}
+function hud(text) { var w = tw(text) + 10; B(ctx, 4, 4, w, 16, '#1c1a26'); txt(text, 9, 6, '#f2c94c'); }
+function hintBar(s) { if (!s) return; var w = tw(s) + 12, x = LW - w - 4; ctx.fillStyle = 'rgba(20,18,28,.85)'; ctx.fillRect(x, 4, w, 16); txt(s, x + 6, 6, '#fff'); }
+function timerBar(x, y, w, left) { B(ctx, x, y, w, 7, '#3a3442'); var f = Math.max(0, Math.min(1, left)); R(ctx, x + 1, y + 1, Math.round((w - 2) * f), 5, f > 0.3 ? '#f2c94c' : '#e2574c'); }
+function drawChoice() {
+  var c = S.choice; if (!c || c.custom) return;
+  var n = c.opts.length, w = 0; c.opts.forEach(function (o) { w = Math.max(w, mw(o)); });
+  w = Math.max(200, w + 34); var h = 18 + n * 17 + 5, x = Math.round((LW - w) / 2), y = LH - h - 2;
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(x + 3, y + 3, w, h);
+  B(ctx, x, y, w, h, '#2a2836'); txt(c.prompt, x + 6, y + 3, '#f2c94c'); timerBar(x + w - 86, y + 5, 80, 1 - (S.t - c.t0) / c.sec);
+  c.rects = [];
+  for (var i = 0; i < n; i++) { var oy = y + 18 + i * 17; B(ctx, x + 4, oy, w - 8, 16, '#fffdf4'); B(ctx, x + 6, oy + 2, 12, 12, '#e2574c'); txt(String(i + 1), x + 12, oy + 2, '#fff', 'center'); mtxt(c.opts[i], x + 23, oy + 2, OL); c.rects.push([x + 4, oy, w - 8, 16]); }
+}
+
+/* ================= office ================= */
+function renderOffice() {
+  ctx.drawImage(bg, 0, 0);
+  var list = [], p = S.player;
+  propSprs.forEach(function (o) { list.push({ by: o.by, f: function () { ctx.fillStyle = 'rgba(40,30,40,.2)'; ctx.fillRect(o.x + 1, o.by - 1, o.spr.width, 3); ctx.drawImage(o.spr, o.x, o.y); } }); });
+  DESKS.forEach(function (d, i) {
+    var npc = S.npcs.filter(function (n) { return n.desk === i; })[0];
+    var seated = d.me ? p.seated : npc.seated, spr = d.me ? S.pspr : npc.spr;
+    list.push({ by: d.y - 12, f: function () { drawDeskBack(ctx, d, seated, spr); } });
+    list.push({ by: d.y + d.h, f: function () { drawDeskFront(ctx, d); var nm = d.me ? S.name : npc.name + (d.lead ? ' 팀장' : ''); txt(nm, d.x + d.w / 2 + 1, d.y + d.h + 3, 'rgba(46,34,47,.35)', 'center'); txt(nm, d.x + d.w / 2, d.y + d.h + 2, d.me ? '#fff6c8' : '#f4efe2', 'center'); } });
+  });
+  function walker(o, spr) { var fr = o.walk ? (Math.floor(o.walk) % 2 ? 1 : 2) : 0; list.push({ by: o.y, f: function () { ctx.fillStyle = 'rgba(40,30,40,.25)'; ctx.fillRect(Math.round(o.x) - 5, Math.round(o.y) - 1, 10, 2); ctx.drawImage(spr[o.dir][fr], Math.round(o.x) - 8, Math.round(o.y) - 24); } }); }
+  S.npcs.forEach(function (n) { if (!n.seated && !n.gone) walker(n, n.spr); });
+  if (!p.seated && !p.hidden) walker(p, S.pspr);
+  list.sort(function (a, b) { return a.by - b.by; }).forEach(function (o) { o.f(); });
+  var d = myDesk();
+  if (S.bangDesk) bang(d.x + d.w - 10, d.y - 9);
+  S.bubbles.forEach(function (b) {
+    var n = b.who, hx, hy;
+    if (n === 'me') { if (p.seated) { hx = d.x + d.w / 2; hy = d.y - 19; } else { hx = p.x; hy = p.y - 26; } } else if (n.seated) { hx = n.d.x + n.d.w / 2; hy = n.d.y - 19; } else { hx = n.x; hy = n.y - 25; }
+    bubble(b.text, hx, hy);
+  });
+  hud('월요일 ' + S.clock);
+  hintBar(S.ctrl && nearDesk() ? '내 책상을 클릭해서 앉기' : S.hint);
+}
+
+/* ================= caption & elevator ================= */
+function renderCaption() {
+  R(ctx, 0, 0, LW, LH, '#0e0d14');
+  bitmap(ctx, TURKEY, TPAL, LW / 2 - 20, 40, 2);
+  txt('당신은 칠면조 물산의 신입사원입니다.', LW / 2, 96, '#f2c94c', 'center');
+  txt('제한 시간내 최적의 선택으로', LW / 2, 118, '#f1ecdf', 'center');
+  txt('최상의 결과를 만들어보세요!', LW / 2, 132, '#f1ecdf', 'center');
+}
+var elevCab = null;
+function buildElev() {
+  var c = mk(LW, LH), x = c.getContext('2d'), CX = 124, CY = 30, CW = 136, BW = 58, FY = CY + BW, FH = 86, i, k, y, xx;
+  B(x, CX - 4, CY - 6, CW + 8, BW + FH + 16, '#5a6070');
+  R(x, CX, CY - 2, CW, 6, '#3a3e4c'); B(x, CX + 30, CY - 1, CW - 60, 4, '#fff6d0');
+  R(x, CX, CY + 4, CW, BW - 4, '#b4bcc8');
+  for (i = 0; i < 4; i++) { xx = CX + i * (CW / 4); R(x, xx, CY + 4, 1, BW - 4, '#8e96a4'); R(x, xx + 1, CY + 4, 1, BW - 4, '#ccd4de'); }
+  R(x, CX, CY + 4, CW, 2, '#d8dee6');
+  B(x, CX + 18, CY + 10, CW - 58, 26, '#9ccbe0'); R(x, CX + 20, CY + 12, CW - 62, 3, '#c8e6f2');
+  for (k = 0; k < 5; k++) R(x, CX + 26 + k * 3, CY + 14 + k * 4, 10, 1, '#b8dcec');
+  var mx = CX + 18 + (CW - 58) / 2; R(x, mx - 6, CY + 22, 12, 8, '#3a2a22'); R(x, mx - 7, CY + 30, 14, 6, '#2e4a78'); R(x, mx - 6, CY + 22, 12, 1, OL);
+  R(x, CX + 6, CY + 42, CW - 12, 3, OL); R(x, CX + 7, CY + 42, CW - 14, 2, '#c49a66'); R(x, CX + 14, CY + 45, 2, 4, OL); R(x, CX + CW - 16, CY + 45, 2, 4, OL);
+  R(x, CX, FY - 6, CW, 6, '#7e8694'); R(x, CX, FY - 6, CW, 1, '#5a6070');
+  var px = CX + CW - 32; B(x, px, CY + 8, 22, 40, '#2c2e3a'); B(x, px + 3, CY + 11, 16, 9, '#111018');
+  for (var r = 0; r < 4; r++) for (k = 0; k < 3; k++) B(x, px + 3 + k * 6, CY + 23 + r * 6, 5, 5, (r === 1 && k === 0) ? '#f2c94c' : '#8a909c');
+  B(x, CX + 5, CY + 12, 10, 14, '#fafaf5'); R(x, CX + 7, CY + 14, 6, 1, '#c8463c'); R(x, CX + 7, CY + 17, 6, 1, '#8a8a94'); R(x, CX + 7, CY + 20, 4, 1, '#8a8a94');
+  R(x, CX, FY, CW, FH, '#4a4e5c');
+  for (y = FY; y < FY + FH; y += 10) for (xx = CX; xx < CX + CW; xx += 10) if (((xx - CX) / 10 + (y - FY) / 10) % 2 === 0) R(x, xx, y, Math.min(10, CX + CW - xx), Math.min(10, FY + FH - y), '#525868');
+  R(x, CX, FY, CW, 2, '#383c48');
+  R(x, CX, FY, 6, FH, '#98a0ae'); R(x, CX + 5, FY, 1, FH, '#6e7684'); R(x, CX + CW - 6, FY, 6, FH, '#98a0ae'); R(x, CX + CW - 6, FY, 1, FH, '#6e7684');
+  R(x, CX + 7, FY + 30, 2, FH - 44, OL); R(x, CX + CW - 9, FY + 30, 2, FH - 44, OL);
+  R(x, CX, FY + FH, CW, 6, '#c8ccd4'); R(x, CX, FY + FH, CW, 1, OL);
+  for (xx = CX + 4; xx < CX + CW - 4; xx += 6) R(x, xx, FY + FH + 2, 3, 2, '#8a909c');
+  B(x, CX - 4, FY + FH + 6, 26, 10, '#8e96a4'); B(x, CX + CW - 22, FY + FH + 6, 26, 10, '#8e96a4'); R(x, CX - 2, FY + FH + 8, 22, 2, '#b4bcc8'); R(x, CX + CW - 20, FY + FH + 8, 22, 2, '#b4bcc8');
+  x.fillStyle = 'rgba(255,246,208,.07)'; x.fillRect(CX + 6, FY + 2, CW - 12, FH - 4); x.fillRect(CX + 30, FY + 10, CW - 60, FH - 30);
+  elevCab = c;
+}
+function renderElev() {
+  var e = S.el, q = Math.min(1, (S.t - e.t0) / e.dur), off = Math.floor((S.t - e.t0) / Math.max(FAST, 0.3) * 46), y, i;
+  R(ctx, 0, 0, LW, LH, '#15141c');
+  for (y = -12 + off % 24; y < LH; y += 12) { var odd = Math.floor((y - off) / 12) % 2; R(ctx, 0, y, LW, 12, odd ? '#1b1a24' : '#191822'); R(ctx, 0, y + 11, LW, 1, '#121118'); }
+  [96, 104, 280, 288].forEach(function (x) { R(ctx, x, 0, 3, LH, '#2a2a38'); R(ctx, x + 3, 0, 1, LH, '#101016'); });
+  for (y = -36 + off % 36; y < LH; y += 36) { R(ctx, 92, y, 16, 4, '#34344a'); R(ctx, 276, y, 16, 4, '#34344a'); }
+  [180, 188, 196, 204].forEach(function (x) { R(ctx, x, 0, 1, 30, '#3a3a4c'); });
+  ctx.drawImage(elevCab, 0, 0);
+  var fl = Math.min(7, 1 + Math.floor(q * 7)), ix = 192;
+  B(ctx, ix - 22, 6, 44, 16, '#111018'); txt(String(fl), ix - 8, 8, '#ff9a3c', 'center');
+  if (fl < 7 || !e.ding) for (i = 0; i < 5; i++) R(ctx, ix + 8 - i, 15 - i - (Math.floor(S.t * 4) % 2), 2 + i * 2, 1, '#ff9a3c');   // up arrow
+  txt(String(fl), 124 + 136 - 32 + 11, 30 + 11, '#ff9a3c', 'center');
+  var fx = 192, fy = 30 + 58 + 50, bob = Math.floor(S.t * 2) % 2 ? 0 : 0;
+  ctx.fillStyle = 'rgba(20,16,28,.35)'; ctx.fillRect(fx - 7, fy - 1, 14, 3);
+  ctx.drawImage(S.pspr.down[0], fx - 8, fy - 24 + bob);
+  B(ctx, fx + 6, fy - 7, 9, 7, '#5a4638'); R(ctx, fx + 9, fy - 9, 3, 2, OL); R(ctx, fx + 7, fy - 5, 7, 1, '#7a6048');
+  if (e.bubble) bubble('(첫 출근! 너무 긴장하지말고 하던대로 하자!)', fx, fy - 26);
+  if (e.ding) bubble('띵!', 236, 26);
+  hud('월요일 ' + S.clock);
+}
+function renderWipe() {   // elevator doors closing from both sides, then opening on the office
+  var w = Math.round(LW / 2 * S.wipe); if (w <= 0) return;
+  [[0, 1], [LW - w, -1]].forEach(function (o) {
+    R(ctx, o[0], 0, w, LH, '#aab2be'); for (var x = 12; x < w; x += 24) R(ctx, o[1] > 0 ? o[0] + w - x : o[0] + x, 0, 1, LH, '#8e96a4');
+    R(ctx, o[1] > 0 ? o[0] + w - 2 : o[0], 0, 2, LH, OL);
+  });
+}
+
+/* ================= computer screens ================= */
+function desktop(app) {
+  R(ctx, 0, 0, LW, LH, '#2f6f7a');
+  for (var y = 0; y < LH; y += 8) for (var x = (y / 8 % 2) * 8; x < LW; x += 16) R(ctx, x, y, 8, 8, '#2c6a75');
+  R(ctx, 0, LH - 16, LW, 16, '#23232e'); R(ctx, 0, LH - 16, LW, 1, '#4a4a5c');
+  B(ctx, 2, LH - 14, 30, 13, '#3d6fd0'); txt('시작', 6, LH - 13, '#fff');
+  if (app) { B(ctx, 36, LH - 14, tw(app) + 10, 13, '#3a3a4a'); txt(app, 41, LH - 13, '#dcdce6'); }
+  txt(S.clock, LW - 5, LH - 13, '#fff', 'right'); txt('월요일', LW - 40, LH - 13, '#a8a8b8', 'right');
+}
+function icons() {
+  [['내 문서', '#f0d05a'], ['거래처', '#6ab0e0'], ['휴지통', '#c8ccd4']].forEach(function (o, i) { B(ctx, 14, 12 + i * 44, 22, 20, o[1]); R(ctx, 16, 14 + i * 44, 8, 3, '#fff'); txt(o[0], 25, 34 + i * 44, '#fff', 'center'); });
+}
+function win(x, y, w, h, title, bar) {
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(x + 3, y + 3, w, h);
+  B(ctx, x, y, w, h, '#ece8dc'); R(ctx, x + 1, y + 1, w - 2, 14, bar || '#3d5a9a'); txt(title, x + 5, y + 2, bar ? '#2a3440' : '#fff');
+  B(ctx, x + w - 14, y + 2, 11, 11, '#d85a4a'); R(ctx, x + w - 10, y + 7, 3, 1, '#fff');
+}
+function popup(s) { var l = s.split('\n'), w = 0, h = l.length * 15 + 15; l.forEach(function (q) { w = Math.max(w, tw(q)); }); w += 28; var y = Math.round(100 - h / 2); ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(((LW - w) / 2 | 0) + 3, y + 3, w, h); B(ctx, (LW - w) / 2 | 0, y, w, h, '#fffdf4'); l.forEach(function (q, i) { txt(q, LW / 2, y + 8 + i * 15, i === 0 && l.length > 1 ? '#c8463c' : OL, 'center'); }); }
+function renderDocs() {
+  var pc = S.pc, d = pc.doc;
+  desktop('결재 서류 대조');
+  win(18, 4, 348, 190, '급한 결재 서류 대조 (' + (pc.idx + 1) + '/3)');
+  txt('남은 시간', 28, 22, OL); timerBar(78, 24, 240, d ? (d.done ? 0 : 1 - (S.t - d.t0) / d.sec) : 1);
+  if (d) txt(Math.max(0, Math.ceil(d.sec - (S.t - d.t0))) + '초', 356, 22, OL, 'right');
+  ['거래처 주문서', '우리 측 주문서'].forEach(function (title, s) {
+    var x = DOCX[s], side = s ? 'R' : 'L';
+    B(ctx, x, 36, DOCW, 132, '#fffdf4'); R(ctx, x + 1, 37, DOCW - 2, 16, s ? '#dbe6f4' : '#f4e6d0'); txt(title, x + DOCW / 2, 39, OL, 'center'); R(ctx, x + 1, 53, DOCW - 2, 1, OL);
+    if (!d) return;
+    ROWS.forEach(function (lab, k) {
+      var y = DOCY + k * DOCH;
+      if (k) R(ctx, x + 3, y - 1, DOCW - 6, 1, '#e4dfd0');
+      txt(lab, x + 5, y + 1, '#8a8474'); txt(d[side][k], x + 46, y + 1, OL);
+      if (d.hit[side + k]) { var ok = d.hit['L' + k] && d.hit['R' + k], col = ok ? '#3c965a' : '#e2372c'; R(ctx, x + 2, y - 1, DOCW - 4, 1, col); R(ctx, x + 2, y + DOCH - 2, DOCW - 4, 1, col); R(ctx, x + 2, y - 1, 1, DOCH, col); R(ctx, x + DOCW - 3, y - 1, 1, DOCH, col); }
+      if (d.flash && d.flash.s === side && d.flash.k === k && d.flash.until > S.t) { ctx.fillStyle = 'rgba(226,55,44,.25)'; ctx.fillRect(x + 2, y - 1, DOCW - 4, DOCH); }
+    });
+  });
+  txt('서로 다른 부분을 양쪽 서류 모두 클릭하세요', 28, 176, '#6a6456');
+  if (d) txt('찾은 오류 ' + found(d) + '/' + d.diff.length, 356, 176, '#c8463c', 'right');
+  if (pc.msg) popup(pc.msg);
+}
+function fileIcon(x, y) { B(ctx, x, y, 26, 32, '#f6f4ee'); R(ctx, x + 18, y + 1, 7, 7, '#cfcabb'); B(ctx, x + 3, y + 12, 20, 14, '#3c965a'); txt('X', x + 13, y + 13, '#fff', 'center'); }
+var CHAT = { x: 150, y: 4, w: 222, h: 190 };
+function unreadNum(n, x, y, align) { if (n > 0) { txt(String(n), x + 1, y + 1, 'rgba(50,50,30,.6)', align); txt(String(n), x, y, '#ffe600', align); } }
+function renderChat() {
+  var pc = S.pc, C = CHAT, top = C.y + 17, bottom = S.choice ? Math.min(C.y + C.h - 19, choiceTop() - 2) : C.y + C.h - 19;
+  desktop('수출팀 단톡방'); icons();
+  win(C.x, C.y, C.w, C.h, '칠면조 물산 수출팀 7', '#a4b9cc');
+  R(ctx, C.x + 1, C.y + 15, C.w - 2, C.h - 34, '#b2c7d9');
+  B(ctx, C.x + 4, C.y + C.h - 18, C.w - 8, 16, '#fff');
+  txt(pc.mode === 'send' ? '파일을 이 창으로 끌어다 놓으세요' : '메시지 입력', C.x + 8, C.y + C.h - 16, '#9a968a');
+  // measure
+  var total = 0;
+  S.chat.forEach(function (m) {
+    if (m.text) { m._l = wrap(m.text, 150); m._w = 0; m._l.forEach(function (l) { m._w = Math.max(m._w, mw(l)); }); m._w += 10; m._ch = m._l.length * 12 + 5; }
+    else if (m.file) { m._w = tw(m.file) + 26; m._ch = 20; } else { m._w = 72; m._ch = 48; }
+    m._h = (m.me ? 0 : 13) + m._ch + (m.likes ? 14 : 0) + 5; total += m._h;
+  });
+  var y = Math.min(top + 2, bottom - total);
+  ctx.save(); ctx.beginPath(); ctx.rect(C.x + 1, top - 2, C.w - 2, bottom - top + 2); ctx.clip();
+  S.chat.forEach(function (m) {
+    var x, cy = y;
+    if (y + m._h > top - 4 && y < bottom) {
+      if (m.me) x = C.x + C.w - 8 - m._w;
+      else { x = C.x + 26; B(ctx, C.x + 6, y, 16, 16, m.who.col); R(ctx, C.x + 11, y + 3, 6, 5, '#f5cdaa'); R(ctx, C.x + 9, y + 9, 10, 6, '#f4f4f0'); txt(m.who.name + (m.who.lead ? ' 팀장' : ''), x, y, '#38444f'); cy = y + 13; }
+      if (m.text) { B(ctx, x, cy, m._w, m._ch, m.me ? '#fee500' : '#fff'); m._l.forEach(function (l, i) { mtxt(l, x + 5, cy + 2 + i * 12, OL); }); }
+      else if (m.file) { B(ctx, x, cy, m._w, 20, m.me ? '#fee500' : '#fff'); B(ctx, x + 4, cy + 4, 12, 12, m.kind === 'p' ? '#d8403a' : '#3c965a'); txt(m.kind === 'p' ? 'P' : 'X', x + 10, cy + 4, '#fff', 'center'); txt(m.file, x + 20, cy + 4, OL); }
+      else { B(ctx, x, cy, 72, 48, '#fff'); drawDesign(m.img, x + 2, cy + 2, 68, 34); txt('시안 ' + 'ABCD'[m.img], x + 36, cy + 36, OL, 'center'); }
+      if (m.me) unreadNum(m.unread, x - 3, cy + m._ch - 12, 'right'); else unreadNum(m.unread, x + m._w + 3, cy + m._ch - 12, 'left');
+      m._like = null;
+      if (m.likes) {
+        var ly = cy + m._ch + 1, lw = 27 + (m.likes > 9 ? 6 : 0), lx = m.me ? C.x + C.w - 8 - lw : x;
+        B(ctx, lx, ly, lw, 13, m.liked ? '#fff3b0' : '#fff'); if (m.liked) { R(ctx, lx, ly, lw, 1, '#d8a83c'); R(ctx, lx, ly + 12, lw, 1, '#d8a83c'); R(ctx, lx, ly, 1, 13, '#d8a83c'); R(ctx, lx + lw - 1, ly, 1, 13, '#d8a83c'); }
+        thumb(lx + 3, ly + 2); txt(String(m.likes), lx + 15, ly + 1, OL);
+        m._like = [lx - 6, ly - 5, lw + 30, 23];
+        if (m.canLike && !m.liked) { bang(lx + lw + 9, ly + 14); txt('눌러 주세요', lx + lw + 18, ly + 1, '#c8463c'); }
+      }
+    }
+    y += m._h;
+  });
+  ctx.restore();
+  if (pc.mode === 'send') {
+    var f = pc.file, fx = pc.drag ? ptr.x - 13 : f.x, fy = pc.drag ? ptr.y - 16 : f.y;
+    if (!pc.drag) { txt('결재서류_대조결과', 97, 96, '#fff', 'center'); txt('.xlsx', 97, 108, '#fff', 'center'); bang(97, 56); }
+    fileIcon(Math.round(pc.drag ? fx : 84), Math.round(fy));
+  }
+}
+function renderDesk() {
+  desktop(''); icons();
+  var t = S.pc.toast; if (!t) return;
+  var x = 238, y = 150, w = 142, h = 46;
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(x + 3, y + 3, w, h);
+  B(ctx, x, y, w, h, '#fffdf4'); R(ctx, x + 1, y + 1, w - 2, 14, '#fee500'); txt('수출팀 단톡방', x + 5, y + 2, OL);
+  B(ctx, x + 5, y + 20, 16, 16, t.who.col); R(ctx, x + 10, y + 23, 6, 5, '#f5cdaa'); R(ctx, x + 8, y + 29, 10, 6, '#f4f4f0');
+  txt(t.who.name, x + 26, y + 18, '#38444f'); txt('파일을 보냈습니다.', x + 26, y + 30, OL);
+  bang(x + w - 10, y - 2);
+  S.pc.toastRect = [x, y - 18, w, h + 18];
+}
+/* four deliberately different proposal covers */
+function drawDesign(k, x, y, w, h) {
+  var u = w / 68, c = ctx, big = w > 100;
+  function r(a, b, cw, ch, col) { R(c, Math.round(x + a * u), Math.round(y + b * (h / 34)), Math.max(1, Math.round(cw * u)), Math.max(1, Math.round(ch * (h / 34))), col); }
+  if (k === 0) {            // A: minimal white
+    r(0, 0, 68, 34, '#fafafa'); r(5, 5, 4, 4, '#1c1c22'); r(5, 12, 26, 2, '#1c1c22'); r(5, 16, 16, 1, '#9a9aa4'); r(5, 28, 58, 1, '#1c1c22'); r(52, 5, 11, 1, '#9a9aa4'); r(52, 7, 7, 1, '#9a9aa4');
+    if (big) txt('PROPOSAL', x + 5 * u, y + h * 0.52, '#1c1c22');
+  } else if (k === 1) {     // B: navy and gold
+    r(0, 0, 68, 34, '#1a2647'); r(2, 2, 64, 1, '#d8a83c'); r(2, 31, 64, 1, '#d8a83c'); r(2, 2, 1, 30, '#d8a83c'); r(65, 2, 1, 30, '#d8a83c');
+    r(14, 11, 40, 7, '#d8a83c'); r(22, 21, 24, 1, '#f2d27a'); r(27, 24, 14, 1, '#f2d27a'); r(32, 5, 4, 4, '#f2d27a');
+    if (big) txt('PROPOSAL', x + w / 2, y + h * 0.335, '#1a2647', 'center');
+  } else if (k === 2) {     // C: pop colours
+    r(0, 0, 68, 34, '#ffd23c'); r(40, 0, 28, 20, '#ff5fa2'); r(46, 4, 16, 12, '#ffd23c'); r(0, 22, 30, 12, '#38c8e8'); r(4, 26, 8, 4, '#fff'); r(16, 26, 8, 4, '#fff');
+    r(4, 6, 32, 9, '#1c1c22'); r(34, 24, 30, 3, '#1c1c22'); r(34, 29, 20, 2, '#ff5fa2');
+    if (big) txt('PROPOSAL!', x + 7 * u, y + h * 0.2, '#ffd23c');
+  } else {                  // D: natural beige and green
+    r(0, 0, 68, 34, '#efe6d2'); r(0, 0, 14, 5, '#7aa860'); r(0, 5, 8, 5, '#8fbc74'); r(0, 10, 4, 4, '#7aa860'); r(56, 30, 12, 4, '#7aa860'); r(60, 25, 8, 5, '#8fbc74'); r(64, 20, 4, 5, '#7aa860');
+    r(18, 10, 32, 3, '#6a5238'); r(22, 16, 24, 1, '#a08a66'); r(26, 19, 16, 1, '#a08a66'); r(30, 25, 8, 3, '#5a8a48');
+    if (big) txt('Proposal', x + w / 2, y + h * 0.56, '#6a5238', 'center');
+  }
+}
+var DESIGN_RECTS = [[28, 40, 160, 66], [196, 40, 160, 66], [28, 112, 160, 66], [196, 112, 160, 66]];
+function renderDesigns() {
+  var pc = S.pc, c = S.choice;
+  desktop('튀르키예_제안서_시안.pdf');
+  win(18, 4, 348, 190, '튀르키예_제안서_시안.pdf'); R(ctx, 19, 19, 346, 174, '#5c6270');
+  txt('가장 마음에 드는 시안을 고르세요', 28, 23, '#fff'); timerBar(236, 25, 120, c ? 1 - (S.t - c.t0) / c.sec : 0);
+  DESIGN_RECTS.forEach(function (q, i) {
+    var sel = pc.picked === i;
+    R(ctx, q[0] - 2, q[1] - 2, q[2] + 4, q[3] + 4, sel ? '#e2372c' : OL);
+    drawDesign(i, q[0], q[1], q[2], q[3]);
+    B(ctx, q[0] + q[2] - 44, q[1] + q[3] - 15, 44, 15, sel ? '#e2372c' : '#2a2836'); txt('시안 ' + 'ABCD'[i], q[0] + q[2] - 22, q[1] + q[3] - 14, '#fff', 'center');
+  });
+}
+function render() {
+  ctx.setTransform(SC, 0, 0, SC, 0, 0); ctx.imageSmoothingEnabled = false;
+  if (S.scene === 'caption') renderCaption(); else if (S.scene === 'elev') renderElev(); else if (S.scene === 'office') renderOffice();
+  else if (S.scene === 'pc') { var m = S.pc.mode; if (m === 'docs') renderDocs(); else if (m === 'desk') renderDesk(); else if (m === 'designs') renderDesigns(); else renderChat(); }
+  else if (S.scene === 'intro') ctx.drawImage(bg, 0, 0); else R(ctx, 0, 0, LW, LH, '#000');
+  drawChoice();
+  renderWipe();
+  if (S.fade > 0) { ctx.fillStyle = 'rgba(0,0,0,' + Math.min(1, S.fade) + ')'; ctx.fillRect(0, 0, LW, LH); }
+}
+
+/* ================= input ================= */
+var ptr = { x: 0, y: 0 };
+function toL(e) { var r = cv.getBoundingClientRect(); ptr.x = (e.clientX - r.left) / r.width * LW; ptr.y = (e.clientY - r.top) / r.height * LH; }
+function inR(x, y, w, h) { return ptr.x >= x && ptr.x < x + w && ptr.y >= y && ptr.y < y + h; }
+function inQ(q) { return q && inR(q[0], q[1], q[2], q[3]); }
+cv.addEventListener('pointerdown', function (e) {
+  toL(e); try { cv.setPointerCapture(e.pointerId); } catch (er) {}
+  if (S.fade > 0.5) return;
+  if (S.choice) { for (var i = 0; i < S.choice.rects.length; i++) if (inQ(S.choice.rects[i])) { endChoice(i); return; } return; }
+  if (S.scene === 'office' && S.ctrl) {
+    var d = myDesk();
+    if (inR(d.x - 6, d.y - 24, d.w + 12, d.h + 30)) { if (nearDesk()) { var ok = S.sitRes; S.sitRes = null; if (ok) ok(); } else say('me', '가까이 가서 클릭하자', 1.8); }
+  } else if (S.scene === 'pc') {
+    var pc = S.pc;
+    if (pc.mode === 'docs' && pc.doc && !pc.doc.done) {
+      var dc = pc.doc;
+      [0, 1].forEach(function (s) {
+        var side = s ? 'R' : 'L';
+        if (!inR(DOCX[s], DOCY - 1, DOCW, DOCH * 7)) return;
+        var k = Math.floor((ptr.y - (DOCY - 1)) / DOCH);
+        if (dc.diff.indexOf(k) >= 0) { dc.hit[side + k] = true; if (found(dc) === dc.diff.length) dc.end(); }
+        else { dc.miss++; dc.flash = { s: side, k: k, until: S.t + 0.3 }; }
+      });
+    } else if (pc.mode === 'send') { if (inR(60, 44, 76, 78)) pc.drag = true; }
+    else if (pc.mode === 'desk' && pc.toast && inQ(pc.toastRect)) { var r = pc.res; pc.res = null; if (r) r(); }
+    else if (pc.mode === 'chat') {
+      S.chat.forEach(function (m) { if (m.canLike && !m.liked && inQ(m._like)) { m.liked = true; m.likes++; m.canLike = false; if (m.res) m.res(); } });
+    }
+  }
+});
+cv.addEventListener('pointermove', toL);
+function drop(e) {
+  toL(e);
+  if (S.scene === 'pc' && S.pc && S.pc.mode === 'send' && S.pc.drag) { S.pc.drag = false; if (inR(CHAT.x, CHAT.y, CHAT.w, CHAT.h)) { var r = S.pc.res; S.pc.res = null; if (r) r(); } }
+}
+cv.addEventListener('pointerup', drop); cv.addEventListener('pointercancel', drop);
+var KEYMAP = { KeyW: 'up', KeyA: 'left', KeyS: 'down', KeyD: 'right', ArrowUp: 'up', ArrowLeft: 'left', ArrowDown: 'down', ArrowRight: 'right' };
+function typing() { var a = document.activeElement; return a && /INPUT|TEXTAREA/.test(a.tagName); }
+window.addEventListener('keydown', function (e) {
+  if (typing()) return;
+  var k = KEYMAP[e.code]; if (k) { S.keys[k] = true; if (e.code.indexOf('Arrow') === 0) e.preventDefault(); }
+  if (S.choice && !S.choice.custom && /^Digit[1-9]$/.test(e.code)) { var i = +e.code.slice(5) - 1; if (i < S.choice.opts.length) endChoice(i); }
+});
+window.addEventListener('keyup', function (e) { var k = KEYMAP[e.code]; if (k) S.keys[k] = false; });
+window.addEventListener('blur', function () { S.keys = {}; });
+var coarse = false; try { coarse = window.matchMedia('(pointer: coarse)').matches; } catch (e) {}
+var JOY = { x: 0, y: 0, id: null };
+(function () {
+  var pad = $('pad'), knob = $('knob');
+  function set(e) {
+    var r = pad.getBoundingClientRect(), rad = r.width / 2, x = (e.clientX - r.left - rad) / rad, y = (e.clientY - r.top - rad) / rad, m = Math.hypot(x, y);
+    if (m > 1) { x /= m; y /= m; }
+    JOY.x = x; JOY.y = y; knob.style.left = (28 + x * 28) + '%'; knob.style.top = (28 + y * 28) + '%';
+  }
+  function end() { JOY.x = 0; JOY.y = 0; JOY.id = null; knob.style.left = '28%'; knob.style.top = '28%'; }
+  pad.addEventListener('pointerdown', function (e) { e.preventDefault(); JOY.id = e.pointerId; try { pad.setPointerCapture(e.pointerId); } catch (er) {} set(e); });
+  pad.addEventListener('pointermove', function (e) { if (e.pointerId === JOY.id) set(e); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { pad.addEventListener(ev, function (e) { if (e.pointerId === JOY.id) end(); }); });
+  pad.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  JOY.reset = end;
+})();
+
+/* ================= storage: name check, 50:50 assignment, responses ================= */
+// Two backends. On the hosted copy (GitHub Pages) window.TURKEY_API points at a Google Apps Script web app that keeps
+// the play counter, the used names and the responses in a Google Sheet. Without it the page uses the artifact database.
+var API = window.TURKEY_API || '';
+async function api(body) {   // text/plain body keeps the request "simple", so no CORS preflight is needed
+  var r = await tmo(fetch(API, { method: 'POST', body: JSON.stringify(body) }), 12000);
+  return await r.json();
+}
+function localId() { return 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+var dbP = null;
+try { if (window.claude && window.claude.use) dbP = window.claude.use('db'); } catch (e) {}
+function tmo(p, ms) { return Promise.race([p, new Promise(function (_, rej) { setTimeout(function () { rej(new Error('timeout')); }, ms); })]); }
+async function getDb() { if (!dbP) return null; try { return (await tmo(dbP, 5000)) || null; } catch (e) { return null; } }
+async function claimName(name) {  // true = free (now taken), false = already used, null = could not check
+  try {
+    var db = await getDb(); if (!db) return null;
+    var id = 'n-' + name.charCodeAt(0).toString(16) + '-' + name.charCodeAt(1).toString(16);
+    var ref = db.doc('names/' + id), snap = await tmo(ref.get(), 5000);
+    if (snap.exists) return false;
+    await tmo(ref.set({ name: name, at: Date.now() }), 5000); return true;
+  } catch (e) { return null; }
+}
+// Plays are numbered in the order they start. Each pair of plays (1st+2nd, 3rd+4th, ...) gets one of each condition in a shuffled order,
+// so every even number of plays is split exactly in half. Falls back to a coin flip when the counter cannot be written.
+async function assignCond() {
+  if (/s1/.test(HASH)) return { c: 1, src: 'hash' };
+  if (/s2/.test(HASH)) return { c: 2, src: 'hash' };
+  try {
+    var db = await getDb(); if (!db) throw 0;
+    var ref = db.doc('meta/assign'), snap = await tmo(ref.get(), 5000), n = snap.exists ? ((snap.data() || {}).n | 0) : 0;
+    await tmo(ref.set({ n: n + 1, at: Date.now() }), 5000);
+    var first = (Math.imul((n >> 1) + 7, 2654435761) >>> 13) & 1;
+    return { c: 1 + ((n & 1) ? 1 - first : first), src: 'db', slot: n };
+  } catch (e) { return { c: Math.random() < 0.5 ? 1 : 2, src: 'random' }; }
+}
+var recRef = null, recSaved = false;
+async function saveRecord() {
+  var rec = JSON.parse(JSON.stringify(S.rec)); rec.savedAt = Date.now();
+  if (API) { try { var r = await api({ a: 'save', id: rec.id, rec: rec }); return !!(r && r.ok); } catch (e) { return false; } }
+  try {
+    var db = await getDb(); if (!db) return false;
+    if (!recRef) {   // one private row per signed-in participant: responses/<their id>, readable only by the owner and editors
+      var user = await tmo(window.claude.use('user'), 5000); if (!user) return false;
+      var uid = await tmo(user.id(), 5000); if (!uid) return false;
+      recRef = db.doc('responses/' + uid);
+    }
+    await tmo(recRef.set(rec), 6000); recSaved = true; return true;
+  } catch (e) { return false; }
+}
+
+/* ================= start screen & survey ================= */
+function previews() { [['pv-m', PLAYER_M], ['pv-f', PLAYER_F]].forEach(function (p) { var c = $(p[0]).getContext('2d'); c.clearRect(0, 0, 16, 24); drawChar(c, p[1], 'down', 0); }); }
+function validName(v) { return /^[가-힣]{2}$/.test(v); }
+$('g-m').addEventListener('click', function () { $('g-m').setAttribute('aria-pressed', 'true'); $('g-f').setAttribute('aria-pressed', 'false'); });
+$('g-f').addEventListener('click', function () { $('g-f').setAttribute('aria-pressed', 'true'); $('g-m').setAttribute('aria-pressed', 'false'); });
+$('nick').addEventListener('input', function () {
+  var v = $('nick').value.trim(); $('call').textContent = (v || '○○') + '씨'; $('go').disabled = !validName(v);
+  $('err').textContent = v.length === 2 && !validName(v) ? '이름은 완성된 한글 2글자로 적어 주세요.' : '';
+});
+$('introform').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  var v = $('nick').value.trim(); if (!validName(v) || S.scene !== 'intro') return;
+  $('go').disabled = true; $('err').textContent = '';
+  var ok = null, a = null;
+  if (API) {
+    var forced = /s1/.test(HASH) ? 1 : /s2/.test(HASH) ? 2 : 0;
+    try {
+      var r = await api({ a: 'start', name: v, force: forced });
+      if (r && r.dup) ok = false; else if (r && r.ok) { ok = true; a = { c: r.cond, src: forced ? 'hash' : 'sheet', slot: r.slot }; S.rec.id = r.id; }
+    } catch (er) {}
+    if (ok !== false && !a) { a = { c: forced || (Math.random() < 0.5 ? 1 : 2), src: forced ? 'hash' : 'random' }; S.rec.id = localId(); }
+  } else ok = await claimName(v);
+  if (ok === false) { $('err').textContent = '이미 다른 사람이 쓰고 있는 이름입니다. 다른 이름을 골라 주세요.'; $('go').disabled = false; return; }
+  if (!a) a = await assignCond();
+  S.name = v; S.fem = $('g-f').getAttribute('aria-pressed') === 'true';
+  S.rec.name = v; S.rec.gender = S.fem ? 'F' : 'M'; S.rec.cond = a.c; S.rec.condSrc = a.src; if (a.slot != null) S.rec.slot = a.slot;
+  S.rec.nameChecked = ok === true; S.rec.touch = coarse; S.rec.startedAt = Date.now();
+  setupTeam(); S.fade = 1; $('intro').hidden = true;
+  story().catch(function (er) { console.error(er); });
+});
+document.querySelectorAll('input[name=q1]').forEach(function (el) { el.addEventListener('change', function () { var yes = el.value === '예' && el.checked; $('q2').disabled = !yes; if (!yes) $('q2').value = ''; }); });
+$('q4').addEventListener('input', function () { $('q4').value = $('q4').value.toUpperCase().replace(/[^A-Z]/g, ''); });
+function radio(name) { var el = document.querySelector('input[name=' + name + ']:checked'); return el ? el.value : ''; }
+$('surveyform').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  var q1 = radio('q1'), q2 = $('q2').value.trim(), q3 = radio('q3'), q4 = $('q4').value.trim(), q5 = $('q5').value.trim(), err = '';
+  if (!q1) err = '1번 문항에 답해 주세요.';
+  else if (q1 === '예' && q2 === '') err = '2번 문항에 갯수를 적어 주세요.';
+  else if (!q3) err = '3번 문항에 답해 주세요.';
+  else if (!/^[EI][SN][TF][JP]$/.test(q4)) err = '4번 문항에 MBTI 네 글자를 적어 주세요. (예: ENFP)';
+  else if (q5.replace(/\D/g, '').length < 10) err = '5번 문항에 전화번호를 적어 주세요.';
+  $('serr').textContent = err; if (err) return;
+  $('send').disabled = true; $('send').textContent = '제출하는 중…';
+  S.rec.survey = { remember: q1, count: q1 === '예' ? Number(q2) : null, want: Number(q3), mbti: q4, phone: q5 };
+  var ok = await saveRecord();
+  $('survey').hidden = true; $('ending').hidden = false;
+  if (!ok) {
+    $('endmsg').textContent = '이 화면에서는 응답을 자동으로 보낼 수 없었습니다.';
+    var slim = JSON.parse(JSON.stringify(S.rec)); delete slim.events;
+    $('code').textContent = btoa(unescape(encodeURIComponent(JSON.stringify(slim)))); $('codewrap').hidden = false;
+  }
+});
+
+/* ================= loop ================= */
+[TURKEY].forEach(function (b) { b.forEach(function (r) { if (r.length !== 20) console.error('bad turkey row', r); }); });
+previews();
+var last = performance.now(), ready = false;
+function frame(now) {
+  var dt = Math.min(0.05, (now - last) / 1000); last = now; update(dt); render();
+  var showPad = coarse && S.scene === 'office' && S.ctrl, pad = $('pad');
+  if (pad.hidden === showPad) { pad.hidden = !showPad; S.keys = {}; JOY.reset(); }
+  requestAnimationFrame(frame);
+}
+function go() { if (ready) return; ready = true; buildMap(); buildElev(); requestAnimationFrame(frame); }
+if (document.fonts && document.fonts.load) { document.fonts.load(FONT).then(go, go); setTimeout(go, 3000); } else go();
+window.__game = function () { return S; };
+})();
+</script>
+<style>
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
+body { padding: 0 max(0px, env(safe-area-inset-right, 0px)) 0 max(0px, env(safe-area-inset-left, 0px)) !important; min-height: 100dvh; }
+#stage { width: min(100%, calc(100dvh * 16 / 9)) !important; border: 0 !important; }
+#rotate { position: fixed; inset: 0; z-index: 9; background: #1b1a22; color: #f2c94c; display: none; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 18px; line-height: 1.8; }
+@media (pointer: coarse) and (orientation: portrait) { #rotate { display: flex; } }
+</style>
+<div id="rotate"><div>폰을 가로로 돌려 주세요<br>↻</div></div>
+<script>
+// On phones, go full screen and lock to landscape when the player presses start (ignored where the browser does not allow it).
+document.getElementById('introform').addEventListener('submit', function () {
+  try { if (!window.matchMedia('(pointer: coarse)').matches) return; var el = document.documentElement, p = (el.requestFullscreen || el.webkitRequestFullscreen || function () {}).call(el, { navigationUI: 'hide' });
+    if (p && p.then) p.then(function () { try { screen.orientation.lock('landscape').catch(function () {}); } catch (e) {} }).catch(function () {}); } catch (e) {}
+});
+</script>
+</body>
+</html>
