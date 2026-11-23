@@ -13,8 +13,10 @@ if os.path.isdir(SITE):
     api = open('api_url.txt').read().strip() if os.path.exists('api_url.txt') else ''
     extra_css = '''<style>
 html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
-body { padding: 0 max(0px, env(safe-area-inset-right, 0px)) 0 max(0px, env(safe-area-inset-left, 0px)) !important; min-height: 100dvh; }
-#stage { width: min(100%, calc(100dvh * 16 / 9)) !important; border: 0 !important; }
+body { padding: 0 !important; min-height: 100dvh; }
+.overlay { padding-left: max(12px, env(safe-area-inset-left, 0px)) !important; padding-right: max(12px, env(safe-area-inset-right, 0px)) !important; }
+#stage { aspect-ratio: auto !important; max-width: none !important; width: min(100vw, calc(100dvh * 512 / 216)) !important; height: min(100dvh, calc(100vw * 9 / 16)) !important; border: 0 !important; }
+#pad { width: 15% !important; left: max(3%, env(safe-area-inset-left, 0px)) !important; }
 #rotate { position: fixed; inset: 0; z-index: 9; background: #1b1a22; color: #f2c94c; display: none; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 18px; line-height: 1.8; }
 @media (pointer: coarse) and (orientation: portrait) { #rotate { display: flex; } }
 </style>

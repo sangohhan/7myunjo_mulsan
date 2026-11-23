@@ -1,6 +1,7 @@
 (function () {
 'use strict';
 var LW = 384, LH = 216, SC = 3, OL = '#2e222f';
+var MX = 64, EX = 0;   // on screens wider than 16:9 the scene backdrop continues up to MX logical px past each side; EX = how much is showing
 var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 var $ = function (id) { return document.getElementById(id); };
 var HASH = location.hash || '';
@@ -35,12 +36,12 @@ var TURKEY = [
 var TPAL = { N: '#7a4a2a', D: '#5a3620', O: '#e08a3c', R: '#d8403a', Y: '#f0c040', W: '#ffffff', K: '#1c1820', T: '#c89a66' };
 var blocks = [];
 function drawWallFloor(c) {
-  for (var ty = 0; ty < LH; ty += 16) for (var tx = 0; tx < LW; tx += 16) {
+  for (var ty = 0; ty < LH; ty += 16) for (var tx = -MX; tx < LW + MX; tx += 16) {
     R(c, tx, ty, 16, 16, ((tx + ty) / 16) % 2 ? '#c4b295' : '#cbba9e'); R(c, tx, ty + 15, 16, 1, '#b5a387'); R(c, tx + 15, ty, 1, 16, '#b5a387');
   }
   B(c, 176, 96, 132, 100, '#56807f'); R(c, 179, 99, 126, 94, '#608d8f');
   for (var x = 179; x < 304; x += 4) for (var y = 99; y < 192; y += 4) if (((x + y) >> 2) % 2 === 0) R(c, x + 1, y + 1, 1, 1, '#588386');
-  R(c, 0, 0, LW, 36, '#e8dec8'); R(c, 0, 0, LW, 5, '#d6c9b0'); R(c, 0, 31, LW, 5, '#7a5c43'); R(c, 0, 31, LW, 1, '#967456'); R(c, 0, 35, LW, 1, OL);
+  R(c, -MX, 0, LW + 2 * MX, 36, '#e8dec8'); R(c, -MX, 0, LW + 2 * MX, 5, '#d6c9b0'); R(c, -MX, 31, LW + 2 * MX, 5, '#7a5c43'); R(c, -MX, 31, LW + 2 * MX, 1, '#967456'); R(c, -MX, 35, LW + 2 * MX, 1, OL);
   [262].forEach(function (wx) {
     B(c, wx, 6, 40, 22, '#8fd0ea'); R(c, wx + 1, 7, 38, 3, '#c4e8f5'); R(c, wx + 19, 7, 2, 20, '#f0ece0'); R(c, wx + 1, 16, 38, 2, '#f0ece0');
     R(c, wx + 5, 11, 7, 2, '#fff'); R(c, wx + 26, 21, 8, 2, '#fff'); R(c, wx - 2, 28, 44, 2, '#f0ece0'); R(c, wx - 2, 30, 44, 1, OL);
@@ -62,7 +63,7 @@ var PROPS = [
 ];
 var bg, propSprs = [];
 function buildMap() {
-  bg = mk(LW, LH); drawWallFloor(bg.getContext('2d'));
+  bg = mk(LW + 2 * MX, LH); var bc = bg.getContext('2d'); bc.translate(MX, 0); drawWallFloor(bc);
   blocks = [{ x: 318, y: 30, w: 52, h: 10 }];
   PROPS.forEach(function (p) { var s = p.s(); propSprs.push({ spr: s, x: p.x, y: p.y, by: p.y + s.height }); blocks.push({ x: p.x, y: p.y + s.height - 8, w: s.width, h: 8 }); });
   DESKS.forEach(function (d) { blocks.push({ x: d.x - 4, y: d.y - 12, w: d.w + 8, h: d.h + 13 }); });
@@ -284,7 +285,7 @@ async function likesUp(m, n, a, b) { for (var i = 0; i < n; i++) { await wait(rn
 
 /* ================= update ================= */
 function blocked(x, y) {
-  if (x < 6 || x > LW - 6 || y > LH - 2) return true;
+  if (x < 6 - EX || x > LW - 6 + EX || y > LH - 2) return true;
   if (y < 41 && !(x > DOOR.x + 3 && x < DOOR.x + DOOR.w - 3 && y >= 37)) return true;
   for (var i = 0; i < blocks.length; i++) { var b = blocks[i]; if (x + 5 > b.x && x - 5 < b.x + b.w && y > b.y && y - 4 < b.y + b.h) return true; }
   return false;
@@ -362,7 +363,7 @@ function drawChoice() {
 
 /* ================= office ================= */
 function renderOffice() {
-  ctx.drawImage(bg, 0, 0);
+  ctx.drawImage(bg, -MX, 0);
   var list = [], p = S.player;
   propSprs.forEach(function (o) { list.push({ by: o.by, f: function () { ctx.fillStyle = 'rgba(40,30,40,.2)'; ctx.fillRect(o.x + 1, o.by - 1, o.spr.width, 3); ctx.drawImage(o.spr, o.x, o.y); } }); });
   DESKS.forEach(function (d, i) {
@@ -388,7 +389,7 @@ function renderOffice() {
 
 /* ================= caption & elevator ================= */
 function renderCaption() {
-  R(ctx, 0, 0, LW, LH, '#0e0d14');
+  R(ctx, -MX, 0, LW + 2 * MX, LH, '#0e0d14');
   bitmap(ctx, TURKEY, TPAL, LW / 2 - 20, 40, 2);
   txt('당신은 칠면조 물산의 신입사원입니다.', LW / 2, 96, '#f2c94c', 'center');
   txt('제한 시간내 최적의 선택으로', LW / 2, 118, '#f1ecdf', 'center');
@@ -423,8 +424,8 @@ function buildElev() {
 }
 function renderElev() {
   var e = S.el, q = Math.min(1, (S.t - e.t0) / e.dur), off = Math.floor((S.t - e.t0) / Math.max(FAST, 0.3) * 46), y, i;
-  R(ctx, 0, 0, LW, LH, '#15141c');
-  for (y = -12 + off % 24; y < LH; y += 12) { var odd = Math.floor((y - off) / 12) % 2; R(ctx, 0, y, LW, 12, odd ? '#1b1a24' : '#191822'); R(ctx, 0, y + 11, LW, 1, '#121118'); }
+  R(ctx, -MX, 0, LW + 2 * MX, LH, '#15141c');
+  for (y = -12 + off % 24; y < LH; y += 12) { var odd = Math.floor((y - off) / 12) % 2; R(ctx, -MX, y, LW + 2 * MX, 12, odd ? '#1b1a24' : '#191822'); R(ctx, -MX, y + 11, LW + 2 * MX, 1, '#121118'); }
   [96, 104, 280, 288].forEach(function (x) { R(ctx, x, 0, 3, LH, '#2a2a38'); R(ctx, x + 3, 0, 1, LH, '#101016'); });
   for (y = -36 + off % 36; y < LH; y += 36) { R(ctx, 92, y, 16, 4, '#34344a'); R(ctx, 276, y, 16, 4, '#34344a'); }
   [180, 188, 196, 204].forEach(function (x) { R(ctx, x, 0, 1, 30, '#3a3a4c'); });
@@ -442,8 +443,8 @@ function renderElev() {
   hud('월요일 ' + S.clock);
 }
 function renderWipe() {   // elevator doors closing from both sides, then opening on the office
-  var w = Math.round(LW / 2 * S.wipe); if (w <= 0) return;
-  [[0, 1], [LW - w, -1]].forEach(function (o) {
+  var w = Math.round((LW / 2 + EX) * S.wipe); if (w <= 0) return;
+  [[-EX, 1], [LW + EX - w, -1]].forEach(function (o) {
     R(ctx, o[0], 0, w, LH, '#aab2be'); for (var x = 12; x < w; x += 24) R(ctx, o[1] > 0 ? o[0] + w - x : o[0] + x, 0, 1, LH, '#8e96a4');
     R(ctx, o[1] > 0 ? o[0] + w - 2 : o[0], 0, 2, LH, OL);
   });
@@ -451,9 +452,9 @@ function renderWipe() {   // elevator doors closing from both sides, then openin
 
 /* ================= computer screens ================= */
 function desktop(app) {
-  R(ctx, 0, 0, LW, LH, '#2f6f7a');
-  for (var y = 0; y < LH; y += 8) for (var x = (y / 8 % 2) * 8; x < LW; x += 16) R(ctx, x, y, 8, 8, '#2c6a75');
-  R(ctx, 0, LH - 16, LW, 16, '#23232e'); R(ctx, 0, LH - 16, LW, 1, '#4a4a5c');
+  R(ctx, -MX, 0, LW + 2 * MX, LH, '#2f6f7a');
+  for (var y = 0; y < LH; y += 8) for (var x = (y / 8 % 2) * 8 - MX; x < LW + MX; x += 16) R(ctx, x, y, 8, 8, '#2c6a75');
+  R(ctx, -MX, LH - 16, LW + 2 * MX, 16, '#23232e'); R(ctx, -MX, LH - 16, LW + 2 * MX, 1, '#4a4a5c');
   B(ctx, 2, LH - 14, 30, 13, '#3d6fd0'); txt('시작', 6, LH - 13, '#fff');
   if (app) { B(ctx, 36, LH - 14, tw(app) + 10, 13, '#3a3a4a'); txt(app, 41, LH - 13, '#dcdce6'); }
   txt(S.clock, LW - 5, LH - 13, '#fff', 'right'); txt('월요일', LW - 40, LH - 13, '#a8a8b8', 'right');
@@ -581,18 +582,24 @@ function renderDesigns() {
   });
 }
 function render() {
-  ctx.setTransform(SC, 0, 0, SC, 0, 0); ctx.imageSmoothingEnabled = false;
+  fit(); ctx.setTransform(SC, 0, 0, SC, EX * SC, 0); ctx.imageSmoothingEnabled = false;
   if (S.scene === 'caption') renderCaption(); else if (S.scene === 'elev') renderElev(); else if (S.scene === 'office') renderOffice();
   else if (S.scene === 'pc') { var m = S.pc.mode; if (m === 'docs') renderDocs(); else if (m === 'desk') renderDesk(); else if (m === 'designs') renderDesigns(); else renderChat(); }
-  else if (S.scene === 'intro') ctx.drawImage(bg, 0, 0); else R(ctx, 0, 0, LW, LH, '#000');
+  else if (S.scene === 'intro') ctx.drawImage(bg, -MX, 0); else R(ctx, -MX, 0, LW + 2 * MX, LH, '#000');
   drawChoice();
   renderWipe();
-  if (S.fade > 0) { ctx.fillStyle = 'rgba(0,0,0,' + Math.min(1, S.fade) + ')'; ctx.fillRect(0, 0, LW, LH); }
+  if (S.fade > 0) { ctx.fillStyle = 'rgba(0,0,0,' + Math.min(1, S.fade) + ')'; ctx.fillRect(-MX, 0, LW + 2 * MX, LH); }
+}
+var fitW = 0, fitH = 0;
+function fit() {   // match the canvas to the stage: 16:9 normally, wider when the stage is wider (long phones in landscape)
+  var st = cv.parentNode, w = st.clientWidth, h = st.clientHeight; if (!w || !h || (w === fitW && h === fitH)) return;
+  fitW = w; fitH = h; EX = Math.max(0, Math.min(MX, Math.floor((w / h * LH - LW) / 2)));
+  var cw = (LW + 2 * EX) * SC; if (cv.width !== cw) cv.width = cw;
 }
 
 /* ================= input ================= */
 var ptr = { x: 0, y: 0 };
-function toL(e) { var r = cv.getBoundingClientRect(); ptr.x = (e.clientX - r.left) / r.width * LW; ptr.y = (e.clientY - r.top) / r.height * LH; }
+function toL(e) { var r = cv.getBoundingClientRect(); ptr.x = (e.clientX - r.left) / r.width * (LW + 2 * EX) - EX; ptr.y = (e.clientY - r.top) / r.height * LH; }
 function inR(x, y, w, h) { return ptr.x >= x && ptr.x < x + w && ptr.y >= y && ptr.y < y + h; }
 function inQ(q) { return q && inR(q[0], q[1], q[2], q[3]); }
 cv.addEventListener('pointerdown', function (e) {
