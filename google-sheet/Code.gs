@@ -1,6 +1,6 @@
 /**
  * 칠면조 물산: 구글 시트 저장용 Apps Script
- * 하는 일: (1) 이름 중복 검사 (2) 상황 1·2를 두 명씩 묶어 정확히 반반 배정 (3) 응답을 "응답" 시트에 한 줄씩 저장
+ * 하는 일: (1) 이름 중복 검사 (2) 저장된 기록 기준으로 상황 1·2를 반반 배정 (3) 응답을 "응답" 시트에 한 줄씩 저장
  * 시트 탭 "응답"은 처음 실행될 때 자동으로 만들어집니다. (예전 "이름" 탭은 더 이상 쓰지 않으니 지워도 됩니다.)
  */
 var COLS = ['id', '시작시각', '저장시각', '이름', '성별', '상황', '순번', '배정방식', '인사', '인사_초', '인사_시간초과',
@@ -44,19 +44,33 @@ function start_(q) {
   }
   var id = Utilities.getUuid();
   var force = Number(q.force) || 0;
-  if (force === 1 || force === 2) return { ok: true, cond: force, slot: -1, id: id };   // 테스트용 주소(#s1, #s2)는 순번을 쓰지 않음
-  // 시작 순서대로 번호를 매기고 두 명씩 묶습니다. 묶음의 첫 사람은 무작위, 둘째 사람은 그 반대 상황을 받습니다.
-  var p = PropertiesService.getScriptProperties();
-  var n = Number(p.getProperty('n') || 0), cond;
-  if (n % 2 === 0) { cond = Math.random() < 0.5 ? 1 : 2; p.setProperty('first', String(cond)); }
-  else cond = 3 - Number(p.getProperty('first') || 1);
-  p.setProperty('n', String(n + 1));
-  return { ok: true, cond: cond, slot: n, id: id };
+  if (force === 1 || force === 2) return { ok: true, cond: force, slot: -1, id: id };   // 테스트용 주소(#s1, #s2)는 배정에 넣지 않음
+  // 저장된 기록을 기준으로 인원이 적은 쪽 상황을 배정합니다(같으면 무작위).
+  // 지금 플레이 중인 사람(최근 15분 안에 시작했고 아직 저장 전)도 함께 세어서, 여러 명이 동시에 시작해도 한쪽으로 몰리지 않습니다.
+  // 중간에 나간 사람은 15분 뒤 자동으로 빠지므로, 끝까지 한 사람 기준으로 반반이 맞춰집니다.
+  var cnt = [0, 0, 0];
+  if (last > 1) {
+    var rows = resp.getRange(2, 6, last - 1, 3).getValues();   // 상황, 순번, 배정방식
+    for (var k = 0; k < rows.length; k++) { var c = Number(rows[k][0]); if ((c === 1 || c === 2) && rows[k][2] !== 'hash') cnt[c]++; }
+  }
+  var pend = pending_(), now = Date.now();
+  for (var key in pend) { if (now - pend[key][1] > PENDING_MS) delete pend[key]; else cnt[pend[key][0]]++; }
+  var cond = cnt[1] < cnt[2] ? 1 : cnt[2] < cnt[1] ? 2 : (Math.random() < 0.5 ? 1 : 2);
+  pend[id] = [cond, now];
+  PropertiesService.getScriptProperties().setProperty('pending', JSON.stringify(pend));
+  return { ok: true, cond: cond, slot: cnt[1] + cnt[2], id: id };
+}
+
+var PENDING_MS = 15 * 60 * 1000;
+function pending_() {
+  try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('pending') || '{}') || {}; } catch (e) { return {}; }
 }
 
 function save_(q) {
   var r = q.rec || {}, id = String(q.id || r.id || '');
   if (!id) return { ok: false, msg: 'no id' };
+  var pend = pending_();
+  if (pend[id]) { delete pend[id]; PropertiesService.getScriptProperties().setProperty('pending', JSON.stringify(pend)); }
   var sh = sheet_('응답', COLS), g = r.greet || {}, rp = r.reply || {}, d = r.design || {}, f = r.final || {}, s = r.survey, docs = r.docs || [];
   function doc(i) { return docs[i] ? docs[i].found + '/' + docs[i].total : ''; }
   var slim = JSON.parse(JSON.stringify(r)); delete slim.events;
