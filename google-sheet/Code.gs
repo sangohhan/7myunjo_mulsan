@@ -1,7 +1,7 @@
 /**
  * 칠면조 물산: 구글 시트 저장용 Apps Script
  * 하는 일: (1) 이름 중복 검사 (2) 상황 1·2를 두 명씩 묶어 정확히 반반 배정 (3) 응답을 "응답" 시트에 한 줄씩 저장
- * 시트 탭 "응답", "이름"은 처음 실행될 때 자동으로 만들어집니다.
+ * 시트 탭 "응답"은 처음 실행될 때 자동으로 만들어집니다. (예전 "이름" 탭은 더 이상 쓰지 않으니 지워도 됩니다.)
  */
 var COLS = ['id', '시작시각', '저장시각', '이름', '성별', '상황', '순번', '배정방식', '인사', '인사_초', '인사_시간초과',
   '서류1', '서류2', '서류3', '답장', '답장_초', '답장_시간초과', '회식따봉_초', '고른시안', '시안_초', '시안_시간초과',
@@ -36,13 +36,12 @@ function doPost(e) {
 function start_(q) {
   var name = String(q.name || '');
   if (!/^[가-힣]{2}$/.test(name)) return { ok: false, msg: 'bad name' };
-  var names = sheet_('이름', ['이름', '시각']);
-  var last = names.getLastRow();
+  // 이름은 "응답" 탭에 저장된 기록하고만 비교합니다. 중간에 나가서 기록이 없는 사람의 이름은 다시 쓸 수 있습니다.
+  var resp = sheet_('응답', COLS), last = resp.getLastRow();
   if (last > 1) {
-    var used = names.getRange(2, 1, last - 1, 1).getValues();
+    var used = resp.getRange(2, 4, last - 1, 1).getValues();
     for (var i = 0; i < used.length; i++) if (used[i][0] === name) return { ok: false, dup: true };
   }
-  names.appendRow([name, when_(Date.now())]);
   var id = Utilities.getUuid();
   var force = Number(q.force) || 0;
   if (force === 1 || force === 2) return { ok: true, cond: force, slot: -1, id: id };   // 테스트용 주소(#s1, #s2)는 순번을 쓰지 않음
