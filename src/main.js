@@ -729,15 +729,19 @@ $('q4').addEventListener('input', function () { $('q4').value = $('q4').value.to
 function radio(name) { var el = document.querySelector('input[name=' + name + ']:checked'); return el ? el.value : ''; }
 $('surveyform').addEventListener('submit', async function (e) {
   e.preventDefault();
-  var q1 = radio('q1'), q2 = $('q2').value.trim(), q3 = radio('q3'), q4 = $('q4').value.trim(), q5 = $('q5').value.trim(), err = '';
+  var q1 = radio('q1'), q2 = $('q2').value.trim(), q3 = radio('q3'), q4 = $('q4').value.trim(), q5 = $('q5').value.trim(), qa = radio('qa'), qb = radio('qb'), qc = radio('qc'), qd = radio('qd'), err = '';
   if (!q1) err = '1번 문항에 답해 주세요.';
   else if (q1 === '예' && q2 === '') err = '2번 문항에 갯수를 적어 주세요.';
   else if (!q3) err = '3번 문항에 답해 주세요.';
-  else if (!/^[EI][SN][TF][JP]$/.test(q4)) err = '4번 문항에 MBTI 네 글자를 적어 주세요. (예: ENFP)';
-  else if (q5.replace(/\D/g, '').length < 10) err = '5번 문항에 전화번호를 적어 주세요.';
+  else if (!qa) err = '4번 문항에 답해 주세요.';
+  else if (!qb) err = '5번 문항에 답해 주세요.';
+  else if (!qc) err = '6번 문항에 답해 주세요.';
+  else if (!qd) err = '7번 문항에 답해 주세요.';
+  else if (!/^[EI][SN][TF][JP]$/.test(q4)) err = '8번 문항에 MBTI 네 글자를 적어 주세요. (예: ENFP)';
+  else if (q5.replace(/\D/g, '').length < 10) err = '9번 문항에 전화번호를 적어 주세요.';
   $('serr').textContent = err; if (err) return;
   $('send').disabled = true; $('send').textContent = '제출하는 중…';
-  S.rec.survey = { remember: q1, count: q1 === '예' ? Number(q2) : null, want: Number(q3), mbti: q4, phone: q5 };
+  S.rec.survey = { remember: q1, count: q1 === '예' ? Number(q2) : null, want: Number(q3), reason: Number(qa), othersAgree: Number(qb), dissent: Number(qc), age: Number(qd), mbti: q4, phone: q5 };
   var ok = await saveRecord();
   $('survey').hidden = true; $('ending').hidden = false;
   if (!ok) {

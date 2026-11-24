@@ -6,7 +6,8 @@
 var COLS = ['id', '시작시각', '저장시각', '이름', '성별', '상황', '순번', '배정방식', '인사', '인사_초', '인사_시간초과',
   '서류1', '서류2', '서류3', '답장', '답장_초', '답장_시간초과', '회식따봉_초', '고른시안', '시안_초', '시안_시간초과',
   '팀원시안', '보인따봉수', '마지막선택', '마지막_초', '마지막_시간초과', '플레이_초', '터치기기',
-  '설문완료', '따봉기억', '따봉갯수', '채택희망', 'MBTI', '전화번호', '원본JSON'];
+  '설문완료', '따봉기억', '따봉갯수', '채택희망', 'MBTI', '전화번호', '원본JSON',
+  '선택이유', '팀원동의지각', '평소반대의견', '나이대'];   // 나중에 추가한 문항은 기존 열 순서를 지키려고 맨 뒤에 붙입니다
 
 function sheet_(name, header) {
   var ss = SpreadsheetApp.getActiveSpreadsheet(), sh = ss.getSheetByName(name);
@@ -78,7 +79,9 @@ function save_(q) {
     g.c || '', g.rt == null ? '' : g.rt, g.to ? 'Y' : '', doc(0), doc(1), doc(2), rp.c || '', rp.rt == null ? '' : rp.rt, rp.to ? 'Y' : '',
     r.lunchLikeRt == null ? '' : r.lunchLikeRt, d.c || '', d.rt == null ? '' : d.rt, d.to ? 'Y' : '', r.mateDesign || '', r.likesShown == null ? '' : r.likesShown,
     f.c == null ? '' : f.c, f.rt == null ? '' : f.rt, f.to ? 'Y' : '', r.playSec || '', r.touch ? 'Y' : '',
-    s ? 'Y' : '', s ? s.remember : '', s && s.count != null ? s.count : '', s ? s.want : '', s ? s.mbti : '', s ? "'" + s.phone : '', JSON.stringify(slim)];
+    s ? 'Y' : '', s ? s.remember : '', s && s.count != null ? s.count : '', s ? s.want : '', s ? s.mbti : '', s ? "'" + s.phone : '', JSON.stringify(slim),
+    s && s.reason ? s.reason : '', s && s.othersAgree ? s.othersAgree : '', s && s.dissent ? s.dissent : '', s && s.age ? s.age : ''];
+  if (sh.getLastColumn() < COLS.length) sh.getRange(1, 1, 1, COLS.length).setValues([COLS]);   // 제목 줄에 새 열 이름을 채움
   var last = sh.getLastRow();
   if (last > 1) {
     var ids = sh.getRange(2, 1, last - 1, 1).getValues();

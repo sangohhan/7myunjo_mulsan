@@ -49,6 +49,7 @@ fieldset { border: 2px solid var(--line); background: var(--panel); margin: 0; p
 legend { padding: 0 6px; color: var(--gold); }
 .opts { display: flex; gap: 8px; flex-wrap: wrap; }
 .opts label { display: flex; align-items: center; gap: 6px; border: 2px solid var(--line); padding: 6px 12px; background: #111018; cursor: pointer; }
+.opts.col { flex-direction: column; align-items: stretch; }
 .opts label:has(input:checked) { border-color: var(--gold); color: var(--gold); }
 .opts input { accent-color: #f2c94c; }
 .field { background: #111018; border: 2px solid var(--line); padding: 8px 10px; width: 100%; max-width: 16em; }
@@ -95,10 +96,28 @@ legend { padding: 0 6px; color: var(--gold); }
         <div class="scale"><span>1: 전혀 아님</span><span>5: 매우 원했음</span></div>
       </fieldset>
       <fieldset><legend>4</legend>
+        <h2>마지막 미션에서 그렇게 선택한 이유는 무엇입니까?</h2>
+        <div class="opts col"><label><input type="radio" name="qa" value="1">① 분위기상 말하기 부담스러워서</label><label><input type="radio" name="qa" value="2">② 팀원 의견도 괜찮아보여서</label><label><input type="radio" name="qa" value="3">③ 크게 상관없어서</label><label><input type="radio" name="qa" value="4">④ 내 의견을 꼭 말하고 싶어서</label></div>
+      </fieldset>
+      <fieldset><legend>5</legend>
+        <h2>다른 팀원들도 단톡방에 추천된 시안에 동의한다고 느꼈습니까?</h2>
+        <div class="opts"><label><input type="radio" name="qb" value="1">1</label><label><input type="radio" name="qb" value="2">2</label><label><input type="radio" name="qb" value="3">3</label><label><input type="radio" name="qb" value="4">4</label><label><input type="radio" name="qb" value="5">5</label></div>
+        <div class="scale"><span>1: 전혀 아니다</span><span>5: 매우 그렇다</span></div>
+      </fieldset>
+      <fieldset><legend>6</legend>
+        <h2>평소 공식 집단(팀플, 사내)에서 반대 의견을 얼마나 말하는 편입니까?</h2>
+        <div class="opts"><label><input type="radio" name="qc" value="1">1</label><label><input type="radio" name="qc" value="2">2</label><label><input type="radio" name="qc" value="3">3</label><label><input type="radio" name="qc" value="4">4</label><label><input type="radio" name="qc" value="5">5</label></div>
+        <div class="scale"><span>1: 전혀 아니다</span><span>5: 매우 그렇다</span></div>
+      </fieldset>
+      <fieldset><legend>7</legend>
+        <h2>본인의 나이대를 알려주세요.</h2>
+        <div class="opts col"><label><input type="radio" name="qd" value="1">① 만 19세 미만</label><label><input type="radio" name="qd" value="2">② 만 19 ~ 22세</label><label><input type="radio" name="qd" value="3">③ 만 23 ~ 26세</label><label><input type="radio" name="qd" value="4">④ 만 27세 이상</label></div>
+      </fieldset>
+      <fieldset><legend>8</legend>
         <h2><label for="q4">본인의 MBTI를 알려주세요.</label></h2>
         <input class="field" id="q4" maxlength="4" autocomplete="off" autocapitalize="characters" placeholder="예: ENFP">
       </fieldset>
-      <fieldset><legend>5</legend>
+      <fieldset><legend>9</legend>
         <h2><label for="q5">커피 쿠폰에 응모할 본인의 전화번호를 작성해주세요.</label></h2>
         <input class="field" id="q5" type="tel" inputmode="tel" autocomplete="off" maxlength="13" placeholder="010-0000-0000">
       </fieldset>
@@ -955,15 +974,19 @@ $('q4').addEventListener('input', function () { $('q4').value = $('q4').value.to
 function radio(name) { var el = document.querySelector('input[name=' + name + ']:checked'); return el ? el.value : ''; }
 $('surveyform').addEventListener('submit', async function (e) {
   e.preventDefault();
-  var q1 = radio('q1'), q2 = $('q2').value.trim(), q3 = radio('q3'), q4 = $('q4').value.trim(), q5 = $('q5').value.trim(), err = '';
+  var q1 = radio('q1'), q2 = $('q2').value.trim(), q3 = radio('q3'), q4 = $('q4').value.trim(), q5 = $('q5').value.trim(), qa = radio('qa'), qb = radio('qb'), qc = radio('qc'), qd = radio('qd'), err = '';
   if (!q1) err = '1번 문항에 답해 주세요.';
   else if (q1 === '예' && q2 === '') err = '2번 문항에 갯수를 적어 주세요.';
   else if (!q3) err = '3번 문항에 답해 주세요.';
-  else if (!/^[EI][SN][TF][JP]$/.test(q4)) err = '4번 문항에 MBTI 네 글자를 적어 주세요. (예: ENFP)';
-  else if (q5.replace(/\D/g, '').length < 10) err = '5번 문항에 전화번호를 적어 주세요.';
+  else if (!qa) err = '4번 문항에 답해 주세요.';
+  else if (!qb) err = '5번 문항에 답해 주세요.';
+  else if (!qc) err = '6번 문항에 답해 주세요.';
+  else if (!qd) err = '7번 문항에 답해 주세요.';
+  else if (!/^[EI][SN][TF][JP]$/.test(q4)) err = '8번 문항에 MBTI 네 글자를 적어 주세요. (예: ENFP)';
+  else if (q5.replace(/\D/g, '').length < 10) err = '9번 문항에 전화번호를 적어 주세요.';
   $('serr').textContent = err; if (err) return;
   $('send').disabled = true; $('send').textContent = '제출하는 중…';
-  S.rec.survey = { remember: q1, count: q1 === '예' ? Number(q2) : null, want: Number(q3), mbti: q4, phone: q5 };
+  S.rec.survey = { remember: q1, count: q1 === '예' ? Number(q2) : null, want: Number(q3), reason: Number(qa), othersAgree: Number(qb), dissent: Number(qc), age: Number(qd), mbti: q4, phone: q5 };
   var ok = await saveRecord();
   $('survey').hidden = true; $('ending').hidden = false;
   if (!ok) {
