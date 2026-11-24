@@ -17,16 +17,42 @@ body { padding: 0 !important; min-height: 100dvh; }
 .overlay { padding-left: max(12px, env(safe-area-inset-left, 0px)) !important; padding-right: max(12px, env(safe-area-inset-right, 0px)) !important; }
 #stage { aspect-ratio: auto !important; max-width: none !important; width: min(100vw, calc(100dvh * 512 / 216)) !important; height: min(100dvh, calc(100vw * 9 / 16)) !important; border: 0 !important; }
 #pad { width: 15% !important; left: max(3%, env(safe-area-inset-left, 0px)) !important; }
-#rotate { position: fixed; inset: 0; z-index: 9; background: #1b1a22; color: #f2c94c; display: none; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 18px; line-height: 1.8; }
-@media (pointer: coarse) and (orientation: portrait) { #rotate { display: flex; } }
+.overlay { position: fixed !important; z-index: 5; }
+#turnnote { color: #f2c94c; }
 </style>
-<div id="rotate"><div>폰을 가로로 돌려 주세요<br>↻</div></div>
 <script>
-// On phones, go full screen and lock to landscape when the player presses start (ignored where the browser does not allow it).
-document.getElementById('introform').addEventListener('submit', function () {
-  try { if (!window.matchMedia('(pointer: coarse)').matches) return; var el = document.documentElement, p = (el.requestFullscreen || el.webkitRequestFullscreen || function () {}).call(el, { navigationUI: 'hide' });
-    if (p && p.then) p.then(function () { try { screen.orientation.lock('landscape').catch(function () {}); } catch (e) {} }).catch(function () {}); } catch (e) {}
-});
+(function () {
+  var coarse = false; try { coarse = window.matchMedia('(pointer: coarse)').matches; } catch (e) {}
+  var stage = document.getElementById('stage');
+  // The start screen, survey and closing screen stay upright and full screen in every mode.
+  ['intro', 'survey', 'ending'].forEach(function (id) { document.body.appendChild(document.getElementById(id)); });
+  function upright() {
+    try { if (screen.orientation && screen.orientation.type) return screen.orientation.type.indexOf('portrait') === 0; } catch (e) {}
+    if (typeof window.orientation === 'number') return window.orientation === 0 || window.orientation === 180;
+    return window.innerHeight > window.innerWidth;
+  }
+  // Phone held upright: draw the game turned 90 degrees so it fills the screen when the phone is held sideways.
+  // Nothing has to be unlocked, and it also works in in-app browsers (Instagram, KakaoTalk) that never rotate.
+  function layout() {
+    var rot = coarse && upright() && window.innerHeight > window.innerWidth * 0.9, st = stage.style;
+    document.documentElement.classList.toggle('rot', rot);
+    if (!rot) { st.cssText = ''; return; }
+    var vw = window.innerWidth, vh = window.innerHeight, W = Math.min(vh, vw * 512 / 216), H = Math.min(vw, vh * 9 / 16);
+    st.cssText = 'position:fixed;width:' + W + 'px !important;height:' + H + 'px !important;left:' + ((vw + H) / 2) + 'px;top:' + ((vh - W) / 2) + 'px;transform-origin:0 0;transform:rotate(90deg);';
+  }
+  layout(); window.addEventListener('resize', layout); window.addEventListener('orientationchange', function () { setTimeout(layout, 200); });
+  try { screen.orientation.addEventListener('change', layout); } catch (e) {}
+  if (coarse) {
+    var note = document.createElement('p'); note.id = 'turnnote';
+    note.textContent = '게임은 가로 화면으로 진행됩니다. 시작하면 폰을 가로로 돌려 잡아 주세요. 화면 회전 잠금은 풀지 않아도 됩니다.';
+    var go = document.getElementById('go'); go.parentNode.insertBefore(note, go);
+  }
+  // Where the browser allows it, also go full screen and lock to landscape when the player presses start.
+  document.getElementById('introform').addEventListener('submit', function () {
+    try { if (!coarse) return; var el = document.documentElement, p = (el.requestFullscreen || el.webkitRequestFullscreen || function () {}).call(el, { navigationUI: 'hide' });
+      if (p && p.then) p.then(function () { try { screen.orientation.lock('landscape').catch(function () {}); } catch (e) {} }).catch(function () {}); } catch (e) {}
+  });
+})();
 </script>
 '''
     doc = ('<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">\n'

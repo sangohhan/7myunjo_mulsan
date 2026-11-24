@@ -599,7 +599,14 @@ function fit() {   // match the canvas to the stage: 16:9 normally, wider when t
 
 /* ================= input ================= */
 var ptr = { x: 0, y: 0 };
-function toL(e) { var r = cv.getBoundingClientRect(); ptr.x = (e.clientX - r.left) / r.width * (LW + 2 * EX) - EX; ptr.y = (e.clientY - r.top) / r.height * LH; }
+// On a phone held upright (rotation locked, or an in-app browser that never rotates) the hosted page turns the whole stage 90 degrees
+// with CSS and marks <html class="rot">, so the player just holds the phone sideways. Pointer positions are mapped back here.
+function ROT() { return document.documentElement.classList.contains('rot'); }
+function toL(e) {
+  var r = cv.getBoundingClientRect();
+  if (ROT()) { ptr.x = (e.clientY - r.top) / r.height * (LW + 2 * EX) - EX; ptr.y = (1 - (e.clientX - r.left) / r.width) * LH; }
+  else { ptr.x = (e.clientX - r.left) / r.width * (LW + 2 * EX) - EX; ptr.y = (e.clientY - r.top) / r.height * LH; }
+}
 function inR(x, y, w, h) { return ptr.x >= x && ptr.x < x + w && ptr.y >= y && ptr.y < y + h; }
 function inQ(q) { return q && inR(q[0], q[1], q[2], q[3]); }
 cv.addEventListener('pointerdown', function (e) {

@@ -829,7 +829,14 @@ function fit() {   // match the canvas to the stage: 16:9 normally, wider when t
 
 /* ================= input ================= */
 var ptr = { x: 0, y: 0 };
-function toL(e) { var r = cv.getBoundingClientRect(); ptr.x = (e.clientX - r.left) / r.width * (LW + 2 * EX) - EX; ptr.y = (e.clientY - r.top) / r.height * LH; }
+// On a phone held upright (rotation locked, or an in-app browser that never rotates) the hosted page turns the whole stage 90 degrees
+// with CSS and marks <html class="rot">, so the player just holds the phone sideways. Pointer positions are mapped back here.
+function ROT() { return document.documentElement.classList.contains('rot'); }
+function toL(e) {
+  var r = cv.getBoundingClientRect();
+  if (ROT()) { ptr.x = (e.clientY - r.top) / r.height * (LW + 2 * EX) - EX; ptr.y = (1 - (e.clientX - r.left) / r.width) * LH; }
+  else { ptr.x = (e.clientX - r.left) / r.width * (LW + 2 * EX) - EX; ptr.y = (e.clientY - r.top) / r.height * LH; }
+}
 function inR(x, y, w, h) { return ptr.x >= x && ptr.x < x + w && ptr.y >= y && ptr.y < y + h; }
 function inQ(q) { return q && inR(q[0], q[1], q[2], q[3]); }
 cv.addEventListener('pointerdown', function (e) {
@@ -878,6 +885,7 @@ var JOY = { x: 0, y: 0, id: null };
   var pad = $('pad'), knob = $('knob');
   function set(e) {
     var r = pad.getBoundingClientRect(), rad = r.width / 2, x = (e.clientX - r.left - rad) / rad, y = (e.clientY - r.top - rad) / rad, m = Math.hypot(x, y);
+    if (ROT()) { var t = x; x = y; y = -t; }   // stage drawn turned 90 degrees: screen down = game right, screen left = game down
     if (m > 1) { x /= m; y /= m; }
     JOY.x = x; JOY.y = y; knob.style.left = (28 + x * 28) + '%'; knob.style.top = (28 + y * 28) + '%';
   }
@@ -1017,16 +1025,42 @@ body { padding: 0 !important; min-height: 100dvh; }
 .overlay { padding-left: max(12px, env(safe-area-inset-left, 0px)) !important; padding-right: max(12px, env(safe-area-inset-right, 0px)) !important; }
 #stage { aspect-ratio: auto !important; max-width: none !important; width: min(100vw, calc(100dvh * 512 / 216)) !important; height: min(100dvh, calc(100vw * 9 / 16)) !important; border: 0 !important; }
 #pad { width: 15% !important; left: max(3%, env(safe-area-inset-left, 0px)) !important; }
-#rotate { position: fixed; inset: 0; z-index: 9; background: #1b1a22; color: #f2c94c; display: none; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 18px; line-height: 1.8; }
-@media (pointer: coarse) and (orientation: portrait) { #rotate { display: flex; } }
+.overlay { position: fixed !important; z-index: 5; }
+#turnnote { color: #f2c94c; }
 </style>
-<div id="rotate"><div>폰을 가로로 돌려 주세요<br>↻</div></div>
 <script>
-// On phones, go full screen and lock to landscape when the player presses start (ignored where the browser does not allow it).
-document.getElementById('introform').addEventListener('submit', function () {
-  try { if (!window.matchMedia('(pointer: coarse)').matches) return; var el = document.documentElement, p = (el.requestFullscreen || el.webkitRequestFullscreen || function () {}).call(el, { navigationUI: 'hide' });
-    if (p && p.then) p.then(function () { try { screen.orientation.lock('landscape').catch(function () {}); } catch (e) {} }).catch(function () {}); } catch (e) {}
-});
+(function () {
+  var coarse = false; try { coarse = window.matchMedia('(pointer: coarse)').matches; } catch (e) {}
+  var stage = document.getElementById('stage');
+  // The start screen, survey and closing screen stay upright and full screen in every mode.
+  ['intro', 'survey', 'ending'].forEach(function (id) { document.body.appendChild(document.getElementById(id)); });
+  function upright() {
+    try { if (screen.orientation && screen.orientation.type) return screen.orientation.type.indexOf('portrait') === 0; } catch (e) {}
+    if (typeof window.orientation === 'number') return window.orientation === 0 || window.orientation === 180;
+    return window.innerHeight > window.innerWidth;
+  }
+  // Phone held upright: draw the game turned 90 degrees so it fills the screen when the phone is held sideways.
+  // Nothing has to be unlocked, and it also works in in-app browsers (Instagram, KakaoTalk) that never rotate.
+  function layout() {
+    var rot = coarse && upright() && window.innerHeight > window.innerWidth * 0.9, st = stage.style;
+    document.documentElement.classList.toggle('rot', rot);
+    if (!rot) { st.cssText = ''; return; }
+    var vw = window.innerWidth, vh = window.innerHeight, W = Math.min(vh, vw * 512 / 216), H = Math.min(vw, vh * 9 / 16);
+    st.cssText = 'position:fixed;width:' + W + 'px !important;height:' + H + 'px !important;left:' + ((vw + H) / 2) + 'px;top:' + ((vh - W) / 2) + 'px;transform-origin:0 0;transform:rotate(90deg);';
+  }
+  layout(); window.addEventListener('resize', layout); window.addEventListener('orientationchange', function () { setTimeout(layout, 200); });
+  try { screen.orientation.addEventListener('change', layout); } catch (e) {}
+  if (coarse) {
+    var note = document.createElement('p'); note.id = 'turnnote';
+    note.textContent = '게임은 가로 화면으로 진행됩니다. 시작하면 폰을 가로로 돌려 잡아 주세요. 화면 회전 잠금은 풀지 않아도 됩니다.';
+    var go = document.getElementById('go'); go.parentNode.insertBefore(note, go);
+  }
+  // Where the browser allows it, also go full screen and lock to landscape when the player presses start.
+  document.getElementById('introform').addEventListener('submit', function () {
+    try { if (!coarse) return; var el = document.documentElement, p = (el.requestFullscreen || el.webkitRequestFullscreen || function () {}).call(el, { navigationUI: 'hide' });
+      if (p && p.then) p.then(function () { try { screen.orientation.lock('landscape').catch(function () {}); } catch (e) {} }).catch(function () {}); } catch (e) {}
+  });
+})();
 </script>
 </body>
 </html>
